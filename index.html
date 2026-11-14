@@ -1,0 +1,459 @@
+1<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cidadãos de Bálcãs</title>
+<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+</head>
+<body>
+<header>
+  <h1>Cidadãos de Bálcãs</h1>
+  <div class="bar">
+    <button onclick="io()">Exportar / importar</button>
+    <button onclick="imprimir()">Imprimir</button>
+  </div>
+</header>
+<main>
+  <nav class="tabs" id="tabs"></nav>
+  <div id="view"></div>
+</main>
+<div id="log">Escolha um dado em uma perícia e clique em Rolar.</div>
+<dialog id="dlg">
+  <h2>Exportar / importar ficha</h2>
+  <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, história e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo.</p>
+  <p id="ierr" class="mute" role="alert"></p>
+  <input type="file" id="f_imp" accept=".html,.htm,.json,.txt,text/html,text/plain,application/json" style="display:none" onchange="importar(this.files[0]);this.value=''">
+  <div class="bar" style="margin-top:8px">
+    <button class="pri" onclick="exportar()">Exportar ficha</button>
+    <button onclick="$('f_imp').click()">Importar ficha</button>
+    <button onclick="dlg.close()">Fechar</button>
+  </div>
+</dialog>
+<div id="printSheet" aria-hidden="true"></div>
+
+<script>
+const A=['FIS','MEN','EMO'];
+const AN={FIS:'Físico',MEN:'Mente',EMO:'Emoção'};
+const DIE=['d4','d6','d8','d10','d12','d20'],BASE=['d4','d6','d8','d10'],RIT=['d12','d20'];
+const COST={d4:0,d6:1,d8:2,d10:3,d12:3,d20:3},PTS=6;
+const espDie=x=>(DIE.indexOf(x)+1)*5;
+const gasto=c=>A.reduce((s,k)=>s+COST[c.attrs[k]],0);
+function toDie(v){if(DIE.includes(v))return v;const n=+v||1;return n<=1?'d4':n==2?'d6':n==3?'d8':'d10'}
+const PERF=['Executor','Vigilante','Analista'];
+const DADOS=['—','d4','d6','d8','d10','d12'];
+const APT=['Artes','Erudição','Folclore','Guerra','Nobreza','Religião'];
+const APTD={Artes:'Música, dança, escrita, pintura, atuação e outras formas de arte.',Erudição:'Conhecimento formal: aritmética, geometria, astronomia. Com d6 ou mais, o personagem é alfabetizado; senão, é analfabeto.',Folclore:'Costumes, tradições e lendas populares, ciclos da vida.',Guerra:'Educação militar e estratégica.',Nobreza:'Etiqueta, leis, heráldica, linhagens.',Religião:'Deuses, mitos, profecias, cerimônias.'};
+const SK=[['Acrobacia','Físico','Movimentos de ginástica e parkour, andar de skate ou patins.'],['Animais','Emoção','Manejar animais, acalmar feras agressivas, cavalgar.'],['Aptidão','Mente',''],['Atletismo','Físico','Correr, saltar, escalar, nadar, remar.'],['Bruxaria','Mente','Conhecimento sobre o paranormal.'],['Crime','Físico','Furtar objetos, abrir fechaduras, falsificar documentos.'],['Disciplina','Emoção','Estudar, meditar, resistir a traumas e sustos.'],['Enganação','Emoção','Mentir, disfarçar-se, seduzir.'],['Furtividade','Físico','Esconder-se, andar sem ser visto ou ouvido.'],['Intimidar','Emoção','Assustar pessoas, coagi-las a fazerem o que você quer.'],['Intuição','Emoção','“Sexto sentido” para analisar pessoas e ambientes.'],['Inspecionar','Mente','Pesquisar documentos e bancos de dados, analisar evidências.'],['Luta','Físico','Atacar desarmado ou com armas corpo a corpo.'],['Medicina','Mente','Primeiros socorros, tratamentos.'],['Metalurgia','Mente','Fabricar e consertar itens.'],['Percepção','Mente','Notar coisas através de visão, audição e olfato, revistar lugares.'],['Persuasão','Emoção','Convencer pessoas com argumentos e lábia.'],['Pontaria','Físico','Atacar com armas de arremesso ou de disparo.'],['Sobrevivência','Mente','Montar acampamento, rastrear, acalmar animais ferozes.'],['Vigor','Físico','Manter o fôlego, resistir a venenos, suportar ferimentos.']];
+const ELEM=['Sangue','Morte','Conhecimento','Energia','Medo'];
+const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['inv','Inventário'],['rituais','Rituais'],['notas','Notas']];
+
+let char=null,tab='ficha';
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:180},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:'',dado:{},apsub:'Artes',itens:[],rituais:[],habs:'',notas:'',hist:''}}
+
+/* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
+const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(IDB_NAME,1);r.onupgradeneeded=()=>r.result.createObjectStore(IDB_STORE);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function fotoPut(v){
+  try{const db=await idb();await new Promise((res,rej)=>{const tx=db.transaction(IDB_STORE,'readwrite'),st=tx.objectStore(IDB_STORE);v?st.put(v,'foto'):st.delete('foto');tx.oncomplete=res;tx.onerror=()=>rej(tx.error)});return true}
+  catch(e){try{v?localStorage.setItem('op_single_foto',v):localStorage.removeItem('op_single_foto');return true}catch(_){say('Aviso: não foi possível guardar a imagem neste navegador.');return false}}
+}
+async function fotoGet(){
+  try{const db=await idb();return await new Promise((res,rej)=>{const r=db.transaction(IDB_STORE).objectStore(IDB_STORE).get('foto');r.onsuccess=()=>res(r.result||'');r.onerror=()=>rej(r.error)})}
+  catch(e){try{return localStorage.getItem('op_single_foto')||''}catch(_){return ''}}
+}
+async function load(){
+  let saved=null;
+  try{const t=localStorage.getItem(LS);saved=t?JSON.parse(t):null}catch(e){}
+  char=fix(saved||blank());
+  const legado=char.foto,f=await fotoGet();
+  char.foto=f||legado||'';
+  if(legado&&!f){await fotoPut(legado);save()}
+  await loadNat();
+}
+function save(){
+  try{const{foto,...resto}=char;localStorage.setItem(LS,JSON.stringify(resto))}
+  catch(e){say('Aviso: armazenamento cheio.')}
+}
+function fix(c){
+  c=Object.assign(blank(),c);
+  const o=c.attrs||{};
+  c.attrs={FIS:toDie(o.FIS??o.FOR),MEN:toDie(o.MEN??o.INT),EMO:toDie(o.EMO??o.PRE)};
+  c.fotoPos=Object.assign({z:100,x:50,y:50,s:180},c.fotoPos||{});
+  return c;
+}
+function sel(opts,val,attrs){return `<select ${attrs}>${opts.map(o=>`<option${o==val?' selected':''}>${esc(o)}</option>`).join('')}</select>`}
+
+function head(){$('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]==tab?'on':''}" onclick="go('${t[0]}')">${t[1]}</button>`).join('')}
+function go(t){tab=t;render()}
+
+/* Importação de fichas antigas em texto */
+function parseFichaTxt(txt){
+  const trimmed=txt.trim();
+  if(trimmed.startsWith('{')){
+    const obj=JSON.parse(trimmed);
+    if(!obj.attrs)throw 0;
+    return fix(obj);
+  }
+  if(!trimmed.includes('[IDENTIFICAÇÃO]'))throw 0;
+  const c=blank();
+  const sec=name=>{
+    const m=trimmed.match(new RegExp(`\\[${name}[^\\]]*\\]\\s*([\\s\\S]*?)(?=\\n\\[|========================================|$)`));
+    return m?m[1].trim():'';
+  };
+  const idB=sec('IDENTIFICAÇÃO');
+  c.nome=(idB.match(/^Nome:\s*(.*)$/m)||[])[1]??'';
+  c.aptidao=(idB.match(/^Aptidão:\s*(.*)$/m)||[])[1]??'';
+  const pf=(idB.match(/^Perfil:\s*(.*)$/m)||[])[1]??'Executor';
+  if(PERF.includes(pf))c.perfil=pf;
+
+  const atB=sec('ATRIBUTOS');
+  const fis=(atB.match(/^Físico:\s*(\S+)/m)||[])[1];
+  const men=(atB.match(/^Mente:\s*(\S+)/m)||[])[1];
+  const emo=(atB.match(/^Emoção:\s*(\S+)/m)||[])[1];
+  if(fis)c.attrs.FIS=toDie(fis);
+  if(men)c.attrs.MEN=toDie(men);
+  if(emo)c.attrs.EMO=toDie(emo);
+
+  const ptB=sec('PONTOS');
+  const pvM=ptB.match(/^Pontos de Vida:\s*(\d+)\s*\/\s*(\d+)/m);
+  if(pvM){c.pv=+pvM[1];c.pvMax=+pvM[2]}
+  const pdM=ptB.match(/^Pontos de Determinação:\s*(\d+)\s*\/\s*(\d+)/m);
+  if(pdM){c.pd=+pdM[1];c.pdMax=+pdM[2]}
+
+  const skB=sec('PERÍCIAS');
+  skB.split('\n').forEach(line=>{
+    const m=line.match(/^-\s*([^:]+):\s*(\S+)/);
+    if(!m)return;
+    let name=m[1].trim(),val=m[2].trim();
+    const apM=name.match(/^Aptidão\s*\(([^)]+)\)/);
+    if(apM){name='Aptidão';if(APT.includes(apM[1]))c.apsub=apM[1]}
+    if(DADOS.includes(val))c.dado[name]=val;
+  });
+
+  const cbB=sec('COMBATE E HABILIDADES');
+  c.prot=(cbB.match(/^Proteção:\s*(.*)$/m)||[])[1]??'';
+  const hbM=cbB.match(/Habilidades e poderes:\s*\n([\s\S]*)$/);
+  if(hbM&&hbM[1].trim()!=='(Nenhuma)')c.habs=hbM[1].trim();
+
+  const invB=sec('INVENTÁRIO');
+  if(invB&&invB!=='(Nenhum item)'){
+    invB.split('\n').forEach(line=>{
+      const m=line.match(/^-\s*(.*?)\s*\|\s*Espaços:\s*([\d.]+)\s*\|\s*Qtd:\s*(\d+)/);
+      if(m)c.itens.push({nome:m[1],esp:+m[2]||0,qtd:+m[3]||1});
+    });
+  }
+
+  const ritB=sec('RITUAIS');
+  if(ritB&&ritB!=='(Nenhum ritual)'){
+    const blocks=ritB.split(/\n(?=•\s)/);
+    blocks.forEach(b=>{
+      const lines=b.split('\n');
+      const hm=lines[0].match(/^•\s*(.*?)\s*\[([^\]]+)\]/);
+      if(!hm)return;
+      const parts=hm[2].split('•').map(s=>s.trim());
+      const elem=ELEM.includes(parts[0])?parts[0]:'Sangue';
+      const circ=parseInt(parts[1])||1;
+      const custo=parseInt(parts[2])||0;
+      const desc=lines.slice(1).map(l=>l.replace(/^  /,'')).join('\n').trim();
+      c.rituais.push({nome:hm[1],elem,circ,custo,desc:desc==='Sem descrição'?'':desc});
+    });
+  }
+
+  const hsB=sec('HISTÓRIA');
+  if(hsB&&hsB!=='(Vazio)')c.hist=hsB;
+  const ntB=sec('ANOTAÇÕES');
+  if(ntB&&ntB!=='(Vazio)')c.notas=ntB;
+  return c;
+}
+
+/* ===== Ficha completa: exportar / importar / imprimir ===== */
+const SHEET_CSS=`
+.sheet{font:13px/1.45 "IBM Plex Sans",system-ui,sans-serif;color:#1b2528;max-width:800px;margin:0 auto}
+.sheet *{box-sizing:border-box}
+.sheet h1{font:400 26px "Special Elite","Courier New",monospace;margin:0 0 6px;border-bottom:2px solid #18808f;padding-bottom:6px}
+.sheet h2{font:400 16px "Special Elite","Courier New",monospace;margin:16px 0 6px;border-bottom:1px dashed #9fb3b7;padding-bottom:3px;color:#18808f;break-after:avoid}
+.sh-id{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
+.sh-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;align-content:start;flex:1;min-width:200px}
+.sh-kv b{color:#5a6a6e;font-weight:500}
+.sh-ret{width:var(--s,180px);aspect-ratio:1;position:relative;overflow:hidden;border:1px solid #18808f;border-radius:16px;flex:none;background:#eef2f3}
+.sh-ret img{position:absolute;max-width:none;display:block}
+.sh-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.sh-2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
+.sh-card{border:1px solid #bccacd;border-radius:6px;padding:8px;text-align:center;break-inside:avoid}
+.sh-card small{display:block;color:#5a6a6e}
+.sh-card big{display:block;font:24px "Special Elite","Courier New",monospace;line-height:1.3}
+.sh-sk{columns:2;column-gap:24px}
+.sh-sk div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px solid #dbe3e5;padding:2px 0;break-inside:avoid}
+.sh-sk .off{color:#8a999d}
+.sh-tb{width:100%;border-collapse:collapse}
+.sh-tb th,.sh-tb td{border-bottom:1px solid #dbe3e5;padding:3px 6px;text-align:left}
+.sh-tb th{color:#5a6a6e;font-weight:500}
+.sh-rit{border:1px solid #bccacd;border-radius:6px;padding:8px;margin-bottom:6px;break-inside:avoid}
+.sh-rit b{font-weight:600}
+.sh-rit small{color:#5a6a6e}
+.sh-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.sh-foot{margin-top:18px;color:#8a999d;font-size:11px;text-align:center}
+`;
+document.head.insertAdjacentHTML('beforeend','<style>'+SHEET_CSS+'</style>');
+let nat={w:1,h:1};
+function natOf(src){return new Promise(res=>{const i=new Image();i.onload=()=>res({w:i.naturalWidth||1,h:i.naturalHeight||1});i.onerror=()=>res({w:1,h:1});i.src=src})}
+async function loadNat(){nat=char&&char.foto?await natOf(char.foto):{w:1,h:1}}
+
+/* geometria do retrato: "cover" × zoom, posição em % (igual para tela, impressão e exportação) */
+function fotoBox(p,n,S){
+  const base=Math.max(S/n.w,S/n.h),dw=n.w*base*p.z/100,dh=n.h*base*p.z/100;
+  return{dw,dh,l:-(dw-S)*p.x/100,t:-(dh-S)*p.y/100};
+}
+function fotoStatic(c,n){
+  const g=fotoBox(c.fotoPos,n,100);
+  return `<div class="sh-ret" style="--s:${c.fotoPos.s}px"><img src="${esc(c.foto)}" alt="" style="width:${g.dw}%;height:${g.dh}%;left:${g.l}%;top:${g.t}%"></div>`;
+}
+function sheetBody(c,n){
+  const carga=c.itens.reduce((s,i)=>s+(+i.esp||0)*(+i.qtd||1),0),max=espDie(c.attrs.FIS);
+  const per=SK.map(([nm,cat])=>{const v=c.dado[nm]||'—',nome=nm=='Aptidão'?`Aptidão (${c.apsub})`:nm;return `<div${v=='—'?' class="off"':''}><span>${esc(nome)} <small>${cat}</small></span><b>${v}</b></div>`}).join('');
+  const itens=c.itens.length?`<table class="sh-tb"><tr><th>Item</th><th>Espaços</th><th>Qtd.</th></tr>${c.itens.map(i=>`<tr><td>${esc(i.nome||'Item sem nome')}</td><td>${+i.esp||0}</td><td>${+i.qtd||1}</td></tr>`).join('')}</table>`:'<p>(Nenhum item)</p>';
+  const rit=c.rituais.length?c.rituais.map(r=>`<div class="sh-rit"><b>${esc(r.nome||'Ritual sem nome')}</b> <small>${esc(r.elem||'Sangue')} · ${r.circ||1}º círculo · ${r.custo||0} PD</small><div class="sh-txt">${esc(r.desc||'')}</div></div>`).join(''):'<p>(Nenhum ritual)</p>';
+  return `<h1>Cidadãos de Bálcãs</h1>
+<div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span></div></div>
+<h2>Atributos</h2><div class="sh-3">${A.map(k=>`<div class="sh-card"><small>${AN[k]}</small><big>${c.attrs[k]}</big></div>`).join('')}</div>
+<h2>Pontos</h2><div class="sh-2"><div class="sh-card"><small>Pontos de Vida</small><big>${c.pv} / ${c.pvMax}</big></div><div class="sh-card"><small>Pontos de Determinação</small><big>${c.pd} / ${c.pdMax}</big></div></div>
+<h2>Perícias</h2><div class="sh-sk">${per}</div>
+<h2>Combate</h2><div class="sh-kv"><b>Defesa</b><span>7</span><b>Proteção</b><span>${esc(c.prot)}</span></div>
+<h2>Habilidades e poderes</h2><div class="sh-txt">${esc(c.habs)||'(Nenhuma)'}</div>
+<h2>Inventário — carga ${carga} / ${max} espaços</h2>${itens}
+<h2>Rituais</h2>${rit}
+<h2>História</h2><div class="sh-txt">${esc(c.hist)||'(Vazio)'}</div>
+<h2>Anotações</h2><div class="sh-txt">${esc(c.notas)||'(Vazio)'}</div>`;
+}
+function sheetDoc(c,n){
+  const data=JSON.stringify(c).replace(/</g,'\\u003c');
+  return `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${esc(c.nome)} — Cidadãos de Bálcãs</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>body{margin:0;padding:24px 14px;background:#e3e9ea}${SHEET_CSS}.sheet{background:#fff;padding:24px;box-shadow:0 2px 14px rgba(0,0,0,.14)}@page{margin:14mm}@media print{body{padding:0;background:#fff}.sheet{padding:0;box-shadow:none}}</style></head>
+<body><div class="sheet">${sheetBody(c,n)}<div class="sh-foot">Ficha exportada de Cidadãos de Bálcãs. Para continuar editando, use Importar ficha no app.</div></div>
+<script type="application/json" id="ficha-data">${data}<\/script></body></html>`;
+}
+function io(){$('ierr').textContent='';$('dlg').showModal()}
+async function exportar(){
+  try{
+    const n=char.foto?await natOf(char.foto):{w:1,h:1};
+    const blob=new Blob([sheetDoc(char,n)],{type:'text/html;charset=utf-8'});
+    const slug=(char.nome||'').toLowerCase().replace(/[^a-z0-9à-ú]+/gi,'-').replace(/^-|-$/g,'')||'ficha';
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);a.download='ficha-'+slug+'.html';
+    document.body.appendChild(a);a.click();a.remove();
+    setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    $('dlg').close();say('Ficha completa exportada.');
+  }catch(e){$('ierr').textContent='Não foi possível exportar a ficha.'}
+}
+function parseFicha(txt){
+  if(/id=["']ficha-data["']/.test(txt)){
+    const el=new DOMParser().parseFromString(txt,'text/html').getElementById('ficha-data');
+    const obj=JSON.parse(el.textContent);
+    if(!obj||!obj.attrs)throw 0;
+    return fix(obj);
+  }
+  const c=parseFichaTxt(txt);          /* .json ou .txt de versões antigas */
+  if(!c.foto){c.foto=char.foto;c.fotoPos=char.fotoPos}
+  return c;
+}
+function importar(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=async e=>{
+    try{
+      const c=parseFicha(String(e.target.result));
+      char=c;
+      await fotoPut(char.foto||'');save();await loadNat();
+      $('dlg').close();render();say('Ficha importada com sucesso.');
+    }catch(err){$('ierr').textContent='Arquivo inválido. Use um arquivo de ficha exportado por este app.'}
+  };
+  r.readAsText(file,'UTF-8');
+}
+function refreshPrint(){$('printSheet').innerHTML=`<div class="sheet">${sheetBody(char,nat)}</div>`}
+async function imprimir(){if(char.foto)nat=await natOf(char.foto);refreshPrint();window.print()}
+addEventListener('beforeprint',refreshPrint);
+
+/* ===== Retrato: imagem original, sem recompressão ===== */
+function setFoto(file){
+  if(!file)return;
+  const r=new FileReader();
+  r.onload=async e=>{
+    char.foto=e.target.result;
+    char.fotoPos=Object.assign({},char.fotoPos,{z:100,x:50,y:50});
+    await fotoPut(char.foto);save();await loadNat();render();
+  };
+  r.readAsDataURL(file);
+}
+async function rmFoto(){char.foto='';char.fotoPos=Object.assign({},char.fotoPos,{z:100,x:50,y:50});await fotoPut('');save();nat={w:1,h:1};render()}
+function resetFotoPos(){Object.assign(char.fotoPos,{z:100,x:50,y:50});save();render()}
+function setFotoProp(k,v){
+  char.fotoPos[k]=+v;save();
+  if(k=='s')$('portrait_box').style.setProperty('--s',v+'px');
+  applyFotoPos();
+  const l=$('lbl_'+k);if(l)l.textContent=Math.round(v)+(k=='s'?'px':'%');
+}
+function syncSliders(){['z','x','y'].forEach(k=>{const r=$('r_'+k),l=$('lbl_'+k);if(r)r.value=char.fotoPos[k];if(l)l.textContent=Math.round(char.fotoPos[k])+'%'})}
+function applyFotoPos(){
+  const img=$('portrait_img'),box=$('portrait_box');
+  if(!img||!box)return;
+  const S=box.clientWidth,g=fotoBox(char.fotoPos,nat,S);
+  img.style.width=g.dw+'px';img.style.height=g.dh+'px';img.style.left=g.l+'px';img.style.top=g.t+'px';
+}
+addEventListener('resize',applyFotoPos);
+
+function stat(k,n){return `<div class="stat"><b>${n}</b>
+<div class="n"><span>Atual</span><button onclick="adj('${k}',-1)" aria-label="Diminuir atual">−</button><input type="number" id="in_${k}" data-st="${k}" value="${char[k]}"><button onclick="adj('${k}',1)" aria-label="Aumentar atual">+</button></div>
+<div class="n"><span>Máximo</span><button onclick="adj('${k}Max',-1)" aria-label="Diminuir máximo">−</button><input type="number" id="in_${k}Max" data-st="${k}Max" value="${char[k+'Max']}"><button onclick="adj('${k}Max',1)" aria-label="Aumentar máximo">+</button></div>
+<div class="meter"><i id="mt_${k}"></i></div></div>`}
+
+function render(){head();const c=char,fp=c.fotoPos||{z:100,x:50,y:50};let h='';
+if(tab=='ficha'){
+h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
+<label>Nome<input data-p="nome" value="${esc(c.nome)}"></label>
+<label>Aptidão<input data-p="aptidao" value="${esc(c.aptidao)}" placeholder="Ex.: Artes, Guerra"></label>
+<label>Perfil${sel(PERF,c.perfil,'data-p="perfil"')}</label></div></div>
+
+<div class="box"><h2>Retrato / Ícone</h2>
+<div class="portrait-wrap">
+  <div id="portrait_box" class="portrait ${c.foto?'has-img':''}" style="--s:${fp.s}px" role="button" tabindex="0" aria-label="Imagem do personagem" onclick="if(!char.foto)$('f_foto').click()" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();$('f_foto').click()}">
+    ${c.foto?`<img id="portrait_img" src="${esc(c.foto)}" alt="Retrato de ${esc(c.nome||'personagem')}" draggable="false" decoding="sync" onload="nat={w:this.naturalWidth,h:this.naturalHeight};applyFotoPos()">`:'<span>Clique para adicionar foto ou ícone</span>'}
+    <div class="membrane" aria-hidden="true"><i></i><i></i></div>
+  </div>
+  <div class="portrait-ctrl">
+    <input type="file" id="f_foto" accept="image/*" style="display:none" onchange="setFoto(this.files[0]);this.value=''">
+    <div class="bar">
+      <button type="button" onclick="$('f_foto').click()">${c.foto?'Trocar imagem':'Escolher imagem'}</button>
+      ${c.foto?'<button type="button" onclick="resetFotoPos()">Centralizar</button><button type="button" onclick="rmFoto()">Remover</button>':''}
+    </div>
+    <div class="adj-grid">
+      ${c.foto?`<label>Zoom <span id="lbl_z">${Math.round(fp.z)}%</span><input id="r_z" type="range" min="100" max="400" step="1" value="${fp.z}" oninput="setFotoProp('z',this.value)"></label>
+      <label>Horizontal <span id="lbl_x">${Math.round(fp.x)}%</span><input id="r_x" type="range" min="0" max="100" step="0.5" value="${fp.x}" oninput="setFotoProp('x',this.value)"></label>
+      <label>Vertical <span id="lbl_y">${Math.round(fp.y)}%</span><input id="r_y" type="range" min="0" max="100" step="0.5" value="${fp.y}" oninput="setFotoProp('y',this.value)"></label>`:''}
+      <label>Tamanho do quadro <span id="lbl_s">${fp.s}px</span><input id="r_s" type="range" min="120" max="320" step="2" value="${fp.s}" oninput="setFotoProp('s',this.value)"></label>
+    </div>
+    <span class="mute">${c.foto?'Arraste a imagem no quadro ou use os controles para enquadrar. A imagem fica guardada no original, sem perda de qualidade.':'A imagem é guardada no original, sem perda de qualidade.'}</span>
+  </div>
+</div></div>
+
+<div class="box"><h2>Atributos</h2>
+<div class="pts" id="pts"><span>Pontos: <b id="ptsN"></b> de ${PTS} gastos · restam <b id="ptsR"></b></span><div class="meter"><i id="ptsM"></i></div></div>
+<div class="attrs">${A.map(k=>`<div class="attr" id="at_${k}"><b>${AN[k]}</b>
+<svg class="die" viewBox="0 0 100 100" role="button" tabindex="0" aria-label="Rolar ${AN[k]}" onclick="rolarA('${k}')" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();rolarA('${k}')}"><title>Clique para rolar ${AN[k]}</title><g class="dg"><path class="do"/><path class="di"/><text x="50" y="50"></text></g></svg>
+<div class="dsel">${BASE.map(x=>`<button data-die="${x}" onclick="setA('${k}','${x}')">${x}<small>${COST[x]} pt${COST[x]==1?'':'s'}</small></button>`).join('')}</div>
+<div class="rit">Ritual: ${RIT.map(x=>`<button data-die="${x}" onclick="setA('${k}','${x}')">${x}</button>`).join(' ')}</div></div>`).join('')}</div>
+<div class="help">
+<p><b>Como distribuir:</b> todo atributo começa em <b>d4</b> (de graça). Você tem <b>${PTS} pontos</b> para melhorar seus atributos. O custo é o preço total do dado escolhido:</p>
+<table><tr><th>Dado</th><td>d4</td><td>d6</td><td>d8</td><td>d10</td></tr><tr><th>Custo</th><td>0</td><td>1</td><td>2</td><td>3</td></tr><tr><th>Inventário (Físico)</th><td>5</td><td>10</td><td>15</td><td>20</td></tr></table>
+<p><b>Exemplos com 6 pontos:</b> Físico d10 (3) + Mente d8 (2) + Emoção d6 (1) = 6 · Físico d8 (2) + Mente d8 (2) + Emoção d8 (2) = 6 · Físico d10 (3) + Mente d4 (0) + Emoção d10 (3) = 6.</p>
+<p>Não é possível passar de ${PTS} pontos. Botões que estourariam o limite ficam apagados; para trocar, baixe outro atributo primeiro.</p>
+<p><b>Físico e inventário:</b> cada passo do dado de Físico soma 5 espaços: d4 = 5, d6 = 10, d8 = 15, d10 = 20.</p>
+<p><b>Rituais:</b> alguns rituais podem levar um atributo além do d10, para <b>d12</b> ou <b>d20</b> (Físico d12 = 25 espaços, d20 = 30). Esses dados não custam pontos extras: contam como os 3 pontos do d10. Use os botões "Ritual" só quando um ritual permitir.</p>
+<p>Clique no dado para rolar o atributo.</p></div></div>
+<div class="stats">${stat('pv','Pontos de Vida')}${stat('pd','Pontos de Determinação')}</div>`}
+if(tab=='pericias'){
+h=`<div class="box"><h2>Perícias</h2><p class="mute">Escolha o dado de cada perícia e clique em Rolar.</p>`+SK.map(([n,cat,desc])=>{const ap=n=='Aptidão';
+return `<div class="sk"><span><b>${n}</b> <span class="mute">${cat}</span>${ap?sel(APT,c.apsub,'class="sub" data-p="apsub" aria-label="Campo da aptidão"'):''}<small>${ap?esc(APTD[c.apsub]):esc(desc)}</small></span>${sel(DADOS,c.dado[n]||'—',`data-sk="${n}" aria-label="Dado de ${n}"`)}<button onclick="rolar('${n}')">Rolar</button></div>`}).join('')+`</div>`}
+if(tab=='combate'){
+h=`<div class="box"><h2>Defesa e proteção</h2><div class="grid g2">
+<label>Defesa<div style="font:28px 'Special Elite'">7</div></label>
+<label>Proteção<input data-p="prot" value="${esc(c.prot)}"></label></div></div>
+<div class="box"><h2>Habilidades e poderes</h2><textarea data-p="habs" placeholder="Habilidades, poderes e características">${esc(c.habs)}</textarea></div>`}
+if(tab=='inv'){
+h=`<div class="box"><h2>Inventário</h2><p>Carga: <b data-out="carga"></b> / <b data-out="cargaMax"></b> espaços</p>${c.itens.map((a,i)=>`<div class="row"><label>Item<input data-l="itens" data-i="${i}" data-k="nome" value="${esc(a.nome)}"></label><label>Espaços<input type="number" step="0.5" min="0" data-l="itens" data-i="${i}" data-k="esp" data-num="1" value="${a.esp||0}"></label><label>Qtd.<input type="number" min="1" data-l="itens" data-i="${i}" data-k="qtd" data-num="1" value="${a.qtd||1}"></label><span></span><button onclick="rm('itens',${i})">×</button></div>`).join('')||'<p class="mute">Inventário vazio.</p>'}<button onclick="add('itens',{nome:'',esp:1,qtd:1})">Adicionar item</button></div>`}
+if(tab=='rituais'){
+h=`<div class="box"><h2>Rituais</h2>${c.rituais.map((a,i)=>`<div class="box"><div class="row"><label>Nome<input data-l="rituais" data-i="${i}" data-k="nome" value="${esc(a.nome)}"></label><label>Elemento${sel(ELEM,a.elem||'Sangue',`data-l="rituais" data-i="${i}" data-k="elem"`)}</label><label>Círculo${sel([1,2,3,4],a.circ||1,`data-l="rituais" data-i="${i}" data-k="circ"`)}</label><label>Custo (PD)<input type="number" min="0" data-l="rituais" data-i="${i}" data-k="custo" data-num="1" value="${a.custo||0}"></label><span><button onclick="gastar(${a.custo||0})">Conjurar</button> <button onclick="rm('rituais',${i})">×</button></span></div><textarea data-l="rituais" data-i="${i}" data-k="desc" placeholder="Execução, alcance, alvo, duração, efeito">${esc(a.desc)}</textarea></div>`).join('')||'<p class="mute">Nenhum ritual conhecido.</p>'}<button onclick="add('rituais',{nome:'',elem:'Sangue',circ:1,custo:1,desc:''})">Adicionar ritual</button></div>`}
+if(tab=='notas'){h=`<div class="box"><h2>História</h2><textarea style="min-height:160px" data-p="hist">${esc(c.hist)}</textarea></div><div class="box"><h2>Anotações</h2><textarea style="min-height:200px" data-p="notas">${esc(c.notas)}</textarea></div>`}
+$('view').innerHTML=h;applyFotoPos();bindPortraitDrag();updA();calc();sync()}
+
+/* Arrastar o retrato diretamente no quadro */
+function bindPortraitDrag(){
+  const box=$('portrait_box');
+  if(!box||!char.foto)return;
+  let drag=false,sx=0,sy=0,ox=50,oy=50;
+  const cl=v=>Math.max(0,Math.min(100,Math.round(v*10)/10));
+  box.onpointerdown=e=>{drag=true;sx=e.clientX;sy=e.clientY;ox=char.fotoPos.x;oy=char.fotoPos.y;box.setPointerCapture(e.pointerId)};
+  box.onpointermove=e=>{
+    if(!drag)return;
+    const S=box.clientWidth,g=fotoBox(char.fotoPos,nat,S),rx=g.dw-S,ry=g.dh-S;
+    if(rx>0.5)char.fotoPos.x=cl(ox-(e.clientX-sx)/rx*100);
+    if(ry>0.5)char.fotoPos.y=cl(oy-(e.clientY-sy)/ry*100);
+    applyFotoPos();syncSliders();
+  };
+  box.onpointerup=box.onpointercancel=()=>{if(drag){drag=false;save()}};
+}
+
+function calc(){const c=char;
+document.querySelectorAll('[data-out]').forEach(e=>{e.textContent=e.dataset.out=='cargaMax'?espDie(c.attrs.FIS):c.itens.reduce((s,i)=>s+(+i.esp||0)*(+i.qtd||1),0)});
+const f=document.querySelector('[data-out="carga"]');if(f)f.style.color=(+f.textContent>+document.querySelector('[data-out="cargaMax"]').textContent)?'#d2553f':''}
+function setv(k,v){const c=char,b=k.replace('Max','');c[k]=Math.max(0,Math.floor(+v||0));if(c[b]>c[b+'Max'])c[b]=c[b+'Max'];save()}
+function sync(){const c=char;['pv','pd'].forEach(k=>{const a=$('in_'+k),b=$('in_'+k+'Max');if(a&&document.activeElement!==a)a.value=c[k];if(b&&document.activeElement!==b)b.value=c[k+'Max'];const m=$('mt_'+k);if(m)m.style.width=(c[k+'Max']?Math.min(100,c[k]/c[k+'Max']*100):0)+'%'})}
+function adj(k,d){setv(k,char[k]+d);sync()}
+function gastar(n){const c=char;if(c.pd<n){say('PD insuficiente para conjurar ('+c.pd+'/'+n+').');return}c.pd-=n;save();sync();say('Ritual conjurado: −'+n+' PD (restam '+c.pd+').')}
+function add(l,o){char[l].push(o);save();render()}
+function rm(l,i){char[l].splice(i,1);save();render()}
+const d=n=>1+Math.floor(Math.random()*n);
+function say(t){$('log').textContent=t}
+function rolar(n){const c=char,die=c.dado[n]||'—',nm=n=='Aptidão'?`Aptidão (${c.apsub})`:n;
+if(die=='—'){say(`${nm}: escolha um dado antes de rolar.`);return}
+const f=+die.slice(1),r=d(f);say(`${nm}: ${die} → ${r}${r==f?' (máximo!)':r==1?' (1)':''}`)}
+
+function setA(k,x){const c=char,antes=gasto(c),novo=antes-COST[c.attrs[k]]+COST[x];
+if(novo>PTS&&novo>antes){say(`Pontos insuficientes para ${AN[k]} ${x}: restam ${PTS-antes}, custa ${COST[x]}.`);return}
+c.attrs[k]=x;save();updA();calc()}
+function updA(){const c=char,g=gasto(c),p=$('pts');if(!p)return;
+$('ptsN').textContent=g;$('ptsR').textContent=Math.max(0,PTS-g);$('ptsM').style.width=Math.min(100,g/PTS*100)+'%';p.classList.toggle('over',g>PTS);
+A.forEach(k=>{const el=$('at_'+k),cv=c.attrs[k],o=g-COST[cv];
+el.querySelectorAll('[data-die]').forEach(b=>{const x=b.dataset.die;b.classList.toggle('on',x==cv);b.setAttribute('aria-pressed',x==cv);b.disabled=x!=cv&&o+COST[x]>PTS&&COST[x]>COST[cv]});
+drawDie(el.querySelector('.die'),cv)})}
+function rolarA(k){const x=char.attrs[k],f=+x.slice(1),r=d(f);say(`${AN[k]}: ${x} → ${r}${r==f?' (máximo!)':r==1?' (1)':''}`)}
+
+/* Geometria dos dados */
+const poly=(n,r,a0)=>Array.from({length:n},(_,i)=>{const a=a0+i*2*Math.PI/n;return[50+r*Math.cos(a),50+r*Math.sin(a)]});
+const HEX=[[50,5],[90,28],[90,72],[50,95],[10,72],[10,28]];
+const D12O=poly(10,46,-Math.PI/2),D12I=poly(5,24,-Math.PI/2);
+const SH={
+d4:{o:[[50,7],[94,84],[6,84]],i:'M50 59L50 7M50 59L94 84M50 59L6 84',ty:66},
+d6:{o:[[12,12],[88,12],[88,88],[12,88]],i:'M24 24H76V76H24ZM12 12L24 24M88 12L76 24M88 88L76 76M12 88L24 76',ty:50},
+d8:{o:HEX,i:'M50 5L10 72H90Z',ty:52},
+d10:{o:[[50,4],[94,44],[94,58],[50,96],[6,58],[6,44]],i:'M50 4L27 62L50 72L73 62ZM50 72V96M27 62L6 58M73 62L94 58',ty:47},
+d12:{o:D12O,i:'M'+D12I.map(p=>p.join(' ')).join('L')+'Z'+D12I.map((p,i)=>'M'+p.join(' ')+'L'+D12O[i*2].join(' ')).join(''),ty:52},
+d20:{o:HEX,i:'M50 26L77 69H23ZM50 26L50 5M50 26L10 28M50 26L90 28M77 69L90 28M77 69L90 72M77 69L50 95M23 69L10 72M23 69L10 28M23 69L50 95',ty:54}};
+const NS=72;
+function ray(pl,a){const dx=Math.cos(a),dy=Math.sin(a);let best=0;
+for(let i=0;i<pl.length;i++){const[p,q]=[pl[i],pl[(i+1)%pl.length]],ex=q[0]-p[0],ey=q[1]-p[1],den=dx*ey-dy*ex;if(Math.abs(den)<1e-9)continue;
+const px=p[0]-50,py=p[1]-50,t=(px*ey-py*ex)/den,u=(px*dy-py*dx)/den;if(t>0&&u>=-1e-9&&u<=1+1e-9&&(!best||t<best))best=t}
+return[50+dx*best,50+dy*best]}
+const SP={};for(const x in SH)SP[x]=Array.from({length:NS},(_,i)=>ray(SH[x].o,-Math.PI/2+i*2*Math.PI/NS));
+const pathOf=pts=>'M'+pts.map(p=>p[0].toFixed(2)+' '+p[1].toFixed(2)).join('L')+'Z';
+const calmo=()=>window.matchMedia&&matchMedia('(prefers-reduced-motion: reduce)').matches;
+function drawDie(svg,x){const o=svg.querySelector('.do'),inn=svg.querySelector('.di'),t=svg.querySelector('text'),g=svg.querySelector('.dg'),prev=svg._die,B=SP[x];
+if(prev==x)return;svg._die=x;cancelAnimationFrame(svg._raf);
+inn.setAttribute('d',SH[x].i);t.textContent=x;t.setAttribute('y',SH[x].ty);
+if(!prev||calmo()){o.setAttribute('d',pathOf(B));svg._pts=B;g.removeAttribute('transform');inn.style.opacity=t.style.opacity='';return}
+const F=svg._pts||B,dir=DIE.indexOf(x)>DIE.indexOf(prev)?1:-1,t0=performance.now(),dur=650;
+const step=now=>{const p=Math.min(1,(now-t0)/dur),e=1-Math.pow(1-p,3),pts=F.map((a,j)=>[a[0]+(B[j][0]-a[0])*e,a[1]+(B[j][1]-a[1])*e]);
+svg._pts=pts;o.setAttribute('d',pathOf(pts));
+g.setAttribute('transform',`translate(50 50) rotate(${(-dir*(1-e)*240).toFixed(1)}) scale(${(1+Math.sin(p*Math.PI)*.14).toFixed(3)}) translate(-50 -50)`);
+const f=Math.max(0,(p-.45)/.55);inn.style.opacity=(f*.45).toFixed(2);t.style.opacity=f.toFixed(2);
+if(p<1)svg._raf=requestAnimationFrame(step);else{g.removeAttribute('transform');inn.style.opacity=t.style.opacity=''}};
+svg._raf=requestAnimationFrame(step)}
+
+document.addEventListener('input',e=>{const t=e.target,c=char;
+if(t.dataset.st){setv(t.dataset.st,t.value);sync();return}
+if(t.dataset.p){const ks=t.dataset.p.split('.');let o=c;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks.pop()]=t.dataset.num?(+t.value||0):t.value}
+else if(t.dataset.l){c[t.dataset.l][t.dataset.i][t.dataset.k]=t.dataset.num?(+t.value||0):t.value}
+else return;save();calc()});
+document.addEventListener('change',e=>{const t=e.target,c=char;
+if(t.dataset.sk){c.dado[t.dataset.sk]=t.value;save();return}
+if(t.tagName=='SELECT'&&(t.dataset.p||t.dataset.l)){save();render()}});
+load().then(render);
+</script>
+</body>
+</html>
