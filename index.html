@@ -4,10 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cidadãos de Bálcãs</title>
-<link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
 </head>
 <body>
+<div id="smoke" aria-hidden="true"><i></i><i></i></div>
 <header>
   <h1>Cidadãos de Bálcãs</h1>
   <div class="bar">
@@ -22,7 +22,7 @@
 <div id="log">Escolha um dado em uma perícia e clique em Rolar.</div>
 <dialog id="dlg">
   <h2>Exportar / importar ficha</h2>
-  <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, história e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo.</p>
+  <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, relações e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo.</p>
   <p id="ierr" class="mute" role="alert"></p>
   <input type="file" id="f_imp" accept=".html,.htm,.json,.txt,text/html,text/plain,application/json" style="display:none" onchange="importar(this.files[0]);this.value=''">
   <div class="bar" style="margin-top:8px">
@@ -42,17 +42,39 @@ const espDie=x=>(DIE.indexOf(x)+1)*5;
 const gasto=c=>A.reduce((s,k)=>s+COST[c.attrs[k]],0);
 function toDie(v){if(DIE.includes(v))return v;const n=+v||1;return n<=1?'d4':n==2?'d6':n==3?'d8':'d10'}
 const PERF=['Executor','Vigilante','Analista'];
-const DADOS=['—','d4','d6','d8','d10','d12'];
-const APT=['Artes','Erudição','Folclore','Guerra','Nobreza','Religião'];
-const APTD={Artes:'Música, dança, escrita, pintura, atuação e outras formas de arte.',Erudição:'Conhecimento formal: aritmética, geometria, astronomia. Com d6 ou mais, o personagem é alfabetizado; senão, é analfabeto.',Folclore:'Costumes, tradições e lendas populares, ciclos da vida.',Guerra:'Educação militar e estratégica.',Nobreza:'Etiqueta, leis, heráldica, linhagens.',Religião:'Deuses, mitos, profecias, cerimônias.'};
+const DADOS=['d4','d6','d8','d10','d12'];
+const DEF_BASE=7;
+const relDie=r=>['','d8','d10','d12'][r.marcas.filter(Boolean).length];
+const relBtn=r=>relDie(r)?'Rolar 1'+relDie(r):'Sem dado';
+const dieOf=(c,n)=>DADOS.includes(c.dado[n])?c.dado[n]:'d4';
+const aptNome=c=>c.apsub=='Outra'?(c.apnome||'Própria'):c.apsub;
+const APT=['Artes','Erudição','Folclore','Guerra','Nobreza','Religião','Outra'];
+const APTD={Outra:'Aptidão própria: dê um nome e descreva o que ela cobre.',Artes:'Música, dança, escrita, pintura, atuação e outras formas de arte.',Erudição:'Conhecimento formal: aritmética, geometria, astronomia. Com d6 ou mais, o personagem é alfabetizado; senão, é analfabeto.',Folclore:'Costumes, tradições e lendas populares, ciclos da vida.',Guerra:'Educação militar e estratégica.',Nobreza:'Etiqueta, leis, heráldica, linhagens.',Religião:'Deuses, mitos, profecias, cerimônias.'};
 const SK=[['Acrobacia','Físico','Movimentos de ginástica e parkour, andar de skate ou patins.'],['Animais','Emoção','Manejar animais, acalmar feras agressivas, cavalgar.'],['Aptidão','Mente',''],['Atletismo','Físico','Correr, saltar, escalar, nadar, remar.'],['Bruxaria','Mente','Conhecimento sobre o paranormal.'],['Crime','Físico','Furtar objetos, abrir fechaduras, falsificar documentos.'],['Disciplina','Emoção','Estudar, meditar, resistir a traumas e sustos.'],['Enganação','Emoção','Mentir, disfarçar-se, seduzir.'],['Furtividade','Físico','Esconder-se, andar sem ser visto ou ouvido.'],['Intimidar','Emoção','Assustar pessoas, coagi-las a fazerem o que você quer.'],['Intuição','Emoção','“Sexto sentido” para analisar pessoas e ambientes.'],['Inspecionar','Mente','Pesquisar documentos e bancos de dados, analisar evidências.'],['Luta','Físico','Atacar desarmado ou com armas corpo a corpo.'],['Medicina','Mente','Primeiros socorros, tratamentos.'],['Metalurgia','Mente','Fabricar e consertar itens.'],['Percepção','Mente','Notar coisas através de visão, audição e olfato, revistar lugares.'],['Persuasão','Emoção','Convencer pessoas com argumentos e lábia.'],['Pontaria','Físico','Atacar com armas de arremesso ou de disparo.'],['Sobrevivência','Mente','Montar acampamento, rastrear, acalmar animais ferozes.'],['Vigor','Físico','Manter o fôlego, resistir a venenos, suportar ferimentos.']];
+const ITENS=[
+['Arco curto de teixo','arma à distância, dano RA+1',1],
+['Lança de javali','arma corpo a corpo, dano RA+2; fornece um aumento de passo no primeiro ataque da cena',2],
+['Faca ritualística','arma corpo a corpo, dano RA+0',1],
+['Martelo de forja','arma corpo a corpo, dano RA+3',2],
+['Porrete','arma corpo a corpo, dano RA+1',2],
+['Arco composto de Al-Andalus','arma à distância, dano RA+1',1],
+['Machado de batalha nórdico','arma corpo a corpo, dano RA+3',3],
+['Lança','arma corpo a corpo, dano RA+2; no primeiro ataque contra um inimigo que ainda não o atacou, você recebe um aumento de passo',1],
+['Escudo','se perder um teste oposto de ataque, mas seu teste somar pelo menos 7, reduz a sua rolagem baixa do dano recebido',1],
+['Elmo aberto','fornece 1 ponto de armadura, mas reduz Percepção em um passo',1],
+['Maleta de medicamentos','usada por curandeiros; usando ela como uma ação você recupera 2d4+3',1],
+['Tenaz de ferreiro','ferramenta semelhante a um alicate grande, com cabos longos e pontas resistentes ao calor',1]];
+const ITENS_HER=[
+['Espada forjada em castelo','arma corpo a corpo, dano RA+3; quando ataca com ela, você consegue um sucesso crítico com dois valores 5 ou mais',2],
+['Cota de malha','fornece 2 pontos de armadura, mas reduz Furtividade em 1 passo',2]];
+const itemInfo=n=>ITENS.concat(ITENS_HER).find(x=>x[0]==n);
 const ELEM=['Sangue','Morte','Conhecimento','Energia','Medo'];
 const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['inv','Inventário'],['rituais','Rituais'],['notas','Notas']];
 
-let char=null,tab='ficha';
+let char=null,tab='ficha',pavor=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:180},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:'',dado:{},apsub:'Artes',itens:[],rituais:[],habs:'',notas:'',hist:''}}
+function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',rels:[]}}
 
 /* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
 const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
@@ -82,11 +104,22 @@ function fix(c){
   c=Object.assign(blank(),c);
   const o=c.attrs||{};
   c.attrs={FIS:toDie(o.FIS??o.FOR),MEN:toDie(o.MEN??o.INT),EMO:toDie(o.EMO??o.PRE)};
-  c.fotoPos=Object.assign({z:100,x:50,y:50,s:180},c.fotoPos||{});
+  c.fotoPos=Object.assign({z:100,x:50,y:50},c.fotoPos||{},{s:320});
+  c.prot=parseInt(c.prot)||0;
+  if(!APT.includes(c.apsub))c.apsub='Artes';
+  c.rels=(Array.isArray(c.rels)?c.rels:[]).map(r=>({nome:r.nome||'',desc:r.desc||'',marcas:[0,1,2].map(j=>!!(r.marcas&&r.marcas[j]))}));
+  if(c.hist){c.notas=(c.notas?c.notas+'\n\n':'')+'História:\n'+c.hist;c.hist=''}
   return c;
 }
 function sel(opts,val,attrs){return `<select ${attrs}>${opts.map(o=>`<option${o==val?' selected':''}>${esc(o)}</option>`).join('')}</select>`}
 
+function setPavor(on){
+  pavor=!!on;
+  if(pavor)document.documentElement.dataset.pavor='1';else delete document.documentElement.dataset.pavor;
+  try{localStorage.setItem('op_pavor',pavor?'1':'')}catch(e){}
+  const b=$('pavorBtn');if(b)b.setAttribute('aria-pressed',pavor);
+}
+function togglePavor(){setPavor(!pavor);say(pavor?'O pavor toma conta de tudo…':'A calma retorna.')}
 function head(){$('tabs').innerHTML=TABS.map(t=>`<button class="${t[0]==tab?'on':''}" onclick="go('${t[0]}')">${t[1]}</button>`).join('')}
 function go(t){tab=t;render()}
 
@@ -130,12 +163,12 @@ function parseFichaTxt(txt){
     if(!m)return;
     let name=m[1].trim(),val=m[2].trim();
     const apM=name.match(/^Aptidão\s*\(([^)]+)\)/);
-    if(apM){name='Aptidão';if(APT.includes(apM[1]))c.apsub=apM[1]}
+    if(apM){name='Aptidão';if(APT.includes(apM[1]))c.apsub=apM[1];else{c.apsub='Outra';c.apnome=apM[1]}}
     if(DADOS.includes(val))c.dado[name]=val;
   });
 
   const cbB=sec('COMBATE E HABILIDADES');
-  c.prot=(cbB.match(/^Proteção:\s*(.*)$/m)||[])[1]??'';
+  c.prot=parseInt((cbB.match(/^Proteção:\s*(\d+)/m)||[])[1])||0;
   const hbM=cbB.match(/Habilidades e poderes:\s*\n([\s\S]*)$/);
   if(hbM&&hbM[1].trim()!=='(Nenhuma)')c.habs=hbM[1].trim();
 
@@ -179,7 +212,7 @@ const SHEET_CSS=`
 .sh-id{display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap}
 .sh-kv{display:grid;grid-template-columns:auto 1fr;gap:3px 12px;align-content:start;flex:1;min-width:200px}
 .sh-kv b{color:#5a6a6e;font-weight:500}
-.sh-ret{width:var(--s,180px);aspect-ratio:1;position:relative;overflow:hidden;border:1px solid #18808f;border-radius:16px;flex:none;background:#eef2f3}
+.sh-ret{width:var(--s,320px);max-width:100%;aspect-ratio:1;position:relative;overflow:hidden;border:1px solid #18808f;border-radius:16px;flex:none;background:#eef2f3}
 .sh-ret img{position:absolute;max-width:none;display:block}
 .sh-3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
 .sh-2{display:grid;grid-template-columns:repeat(2,1fr);gap:8px}
@@ -196,6 +229,8 @@ const SHEET_CSS=`
 .sh-rit b{font-weight:600}
 .sh-rit small{color:#5a6a6e}
 .sh-txt{white-space:pre-wrap;overflow-wrap:anywhere}
+.sh-rel{border:1px solid #bccacd;border-radius:6px;padding:8px;margin-bottom:6px;break-inside:avoid}
+.sh-dots{color:#18808f;letter-spacing:3px;margin-left:6px}
 .sh-foot{margin-top:18px;color:#8a999d;font-size:11px;text-align:center}
 `;
 document.head.insertAdjacentHTML('beforeend','<style>'+SHEET_CSS+'</style>');
@@ -214,19 +249,19 @@ function fotoStatic(c,n){
 }
 function sheetBody(c,n){
   const carga=c.itens.reduce((s,i)=>s+(+i.esp||0)*(+i.qtd||1),0),max=espDie(c.attrs.FIS);
-  const per=SK.map(([nm,cat])=>{const v=c.dado[nm]||'—',nome=nm=='Aptidão'?`Aptidão (${c.apsub})`:nm;return `<div${v=='—'?' class="off"':''}><span>${esc(nome)} <small>${cat}</small></span><b>${v}</b></div>`}).join('');
-  const itens=c.itens.length?`<table class="sh-tb"><tr><th>Item</th><th>Espaços</th><th>Qtd.</th></tr>${c.itens.map(i=>`<tr><td>${esc(i.nome||'Item sem nome')}</td><td>${+i.esp||0}</td><td>${+i.qtd||1}</td></tr>`).join('')}</table>`:'<p>(Nenhum item)</p>';
+  const per=SK.map(([nm,cat])=>{const v=dieOf(c,nm),nome=nm=='Aptidão'?`Aptidão (${aptNome(c)})`:nm;return `<div${v=='d4'?' class="off"':''}><span>${esc(nome)} <small>${cat}</small></span><b>${v}</b></div>`}).join('');
+  const itens=c.itens.length?`<table class="sh-tb"><tr><th>Item</th><th>Descrição</th><th>Espaços</th><th>Qtd.</th></tr>${c.itens.map(i=>{const f=itemInfo(i.nome);return `<tr><td>${esc(i.nome||'Item sem nome')}</td><td>${f?esc(f[1]):''}</td><td>${+i.esp||0}</td><td>${+i.qtd||1}</td></tr>`}).join('')}</table>`:'<p>(Nenhum item)</p>';
   const rit=c.rituais.length?c.rituais.map(r=>`<div class="sh-rit"><b>${esc(r.nome||'Ritual sem nome')}</b> <small>${esc(r.elem||'Sangue')} · ${r.circ||1}º círculo · ${r.custo||0} PD</small><div class="sh-txt">${esc(r.desc||'')}</div></div>`).join(''):'<p>(Nenhum ritual)</p>';
   return `<h1>Cidadãos de Bálcãs</h1>
 <div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span></div></div>
 <h2>Atributos</h2><div class="sh-3">${A.map(k=>`<div class="sh-card"><small>${AN[k]}</small><big>${c.attrs[k]}</big></div>`).join('')}</div>
 <h2>Pontos</h2><div class="sh-2"><div class="sh-card"><small>Pontos de Vida</small><big>${c.pv} / ${c.pvMax}</big></div><div class="sh-card"><small>Pontos de Determinação</small><big>${c.pd} / ${c.pdMax}</big></div></div>
 <h2>Perícias</h2><div class="sh-sk">${per}</div>
-<h2>Combate</h2><div class="sh-kv"><b>Defesa</b><span>7</span><b>Proteção</b><span>${esc(c.prot)}</span></div>
+<h2>Combate</h2><div class="sh-kv"><b>Defesa</b><span>${DEF_BASE+(+c.prot||0)} <small>(7 natural + ${+c.prot||0} de proteção)</small></span><b>Proteção</b><span>${+c.prot||0}</span></div>
 <h2>Habilidades e poderes</h2><div class="sh-txt">${esc(c.habs)||'(Nenhuma)'}</div>
 <h2>Inventário — carga ${carga} / ${max} espaços</h2>${itens}
 <h2>Rituais</h2>${rit}
-<h2>História</h2><div class="sh-txt">${esc(c.hist)||'(Vazio)'}</div>
+<h2>Relações</h2>${c.rels.length?c.rels.map(r=>`<div class="sh-rel"><b>${esc(r.nome||'Sem nome')}</b><span class="sh-dots">${r.marcas.map(m=>m?'●':'○').join('')}</span>${relDie(r)?` <small>dado 1${relDie(r)}</small>`:''}<div class="sh-txt">${esc(r.desc)}</div></div>`).join(''):'<p>(Nenhuma relação)</p>'}
 <h2>Anotações</h2><div class="sh-txt">${esc(c.notas)||'(Vazio)'}</div>`;
 }
 function sheetDoc(c,n){
@@ -261,7 +296,7 @@ function parseFicha(txt){
   }
   const c=parseFichaTxt(txt);          /* .json ou .txt de versões antigas */
   if(!c.foto){c.foto=char.foto;c.fotoPos=char.fotoPos}
-  return c;
+  return fix(c);
 }
 function importar(file){
   if(!file)return;
@@ -308,12 +343,16 @@ function applyFotoPos(){
 }
 addEventListener('resize',applyFotoPos);
 
-function stat(k,n){return `<div class="stat"><b>${n}</b>
-<div class="n"><span>Atual</span><button onclick="adj('${k}',-1)" aria-label="Diminuir atual">−</button><input type="number" id="in_${k}" data-st="${k}" value="${char[k]}"><button onclick="adj('${k}',1)" aria-label="Aumentar atual">+</button></div>
-<div class="n"><span>Máximo</span><button onclick="adj('${k}Max',-1)" aria-label="Diminuir máximo">−</button><input type="number" id="in_${k}Max" data-st="${k}Max" value="${char[k+'Max']}"><button onclick="adj('${k}Max',1)" aria-label="Aumentar máximo">+</button></div>
-<div class="meter"><i id="mt_${k}"></i></div></div>`}
+function stat(k,n){const v=char[k],m=char[k+'Max'],pct=m?Math.min(100,v/m*100):0;
+return `<div class="stat hp hp-${k}"><b>${n}</b>
+<div class="hpbar" id="hp_${k}" style="--max:${Math.max(1,m)}" role="button" tabindex="0" aria-label="${n}: clique para perder 1 ponto" onclick="adj('${k}',-1)" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();adj('${k}',-1)}">
+<div class="hp-in"><div class="hp-trail" id="ht_${k}" style="width:${pct}%"></div><div class="hp-fill" id="hf_${k}" style="width:${pct}%"></div><div class="hp-seg"></div></div>
+<div class="hp-txt" id="hx_${k}">${v} / ${m}</div></div>
+<div class="n"><span>Atual</span><button onclick="adj('${k}',-1)" aria-label="Diminuir atual">−</button><input type="number" id="in_${k}" data-st="${k}" value="${v}"><button onclick="adj('${k}',1)" aria-label="Aumentar atual">+</button></div>
+<div class="n"><span>Máximo</span><button onclick="adj('${k}Max',-1)" aria-label="Diminuir máximo">−</button><input type="number" id="in_${k}Max" data-st="${k}Max" value="${m}"><button onclick="adj('${k}Max',1)" aria-label="Aumentar máximo">+</button></div>
+<div class="mute" style="font-size:12px;margin-top:8px">Clique na barra para perder 1 ponto. Use + para recuperar.</div></div>`}
 
-function render(){head();const c=char,fp=c.fotoPos||{z:100,x:50,y:50};let h='';
+function render(){hpPrev={};head();const c=char,fp=c.fotoPos||{z:100,x:50,y:50};let h='';
 if(tab=='ficha'){
 h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <label>Nome<input data-p="nome" value="${esc(c.nome)}"></label>
@@ -322,7 +361,7 @@ h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 
 <div class="box"><h2>Retrato / Ícone</h2>
 <div class="portrait-wrap">
-  <div id="portrait_box" class="portrait ${c.foto?'has-img':''}" style="--s:${fp.s}px" role="button" tabindex="0" aria-label="Imagem do personagem" onclick="if(!char.foto)$('f_foto').click()" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();$('f_foto').click()}">
+  <div id="portrait_box" class="portrait ${c.foto?'has-img':''}" role="button" tabindex="0" aria-label="Imagem do personagem" onclick="if(!char.foto)$('f_foto').click()" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();$('f_foto').click()}">
     ${c.foto?`<img id="portrait_img" src="${esc(c.foto)}" alt="Retrato de ${esc(c.nome||'personagem')}" draggable="false" decoding="sync" onload="nat={w:this.naturalWidth,h:this.naturalHeight};applyFotoPos()">`:'<span>Clique para adicionar foto ou ícone</span>'}
     <div class="membrane" aria-hidden="true"><i></i><i></i></div>
   </div>
@@ -336,7 +375,7 @@ h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
       ${c.foto?`<label>Zoom <span id="lbl_z">${Math.round(fp.z)}%</span><input id="r_z" type="range" min="100" max="400" step="1" value="${fp.z}" oninput="setFotoProp('z',this.value)"></label>
       <label>Horizontal <span id="lbl_x">${Math.round(fp.x)}%</span><input id="r_x" type="range" min="0" max="100" step="0.5" value="${fp.x}" oninput="setFotoProp('x',this.value)"></label>
       <label>Vertical <span id="lbl_y">${Math.round(fp.y)}%</span><input id="r_y" type="range" min="0" max="100" step="0.5" value="${fp.y}" oninput="setFotoProp('y',this.value)"></label>`:''}
-      <label>Tamanho do quadro <span id="lbl_s">${fp.s}px</span><input id="r_s" type="range" min="120" max="320" step="2" value="${fp.s}" oninput="setFotoProp('s',this.value)"></label>
+
     </div>
     <span class="mute">${c.foto?'Arraste a imagem no quadro ou use os controles para enquadrar. A imagem fica guardada no original, sem perda de qualidade.':'A imagem é guardada no original, sem perda de qualidade.'}</span>
   </div>
@@ -356,20 +395,24 @@ h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <p><b>Físico e inventário:</b> cada passo do dado de Físico soma 5 espaços: d4 = 5, d6 = 10, d8 = 15, d10 = 20.</p>
 <p><b>Rituais:</b> alguns rituais podem levar um atributo além do d10, para <b>d12</b> ou <b>d20</b> (Físico d12 = 25 espaços, d20 = 30). Esses dados não custam pontos extras: contam como os 3 pontos do d10. Use os botões "Ritual" só quando um ritual permitir.</p>
 <p>Clique no dado para rolar o atributo.</p></div></div>
-<div class="stats">${stat('pv','Pontos de Vida')}${stat('pd','Pontos de Determinação')}</div>`}
+<div class="stats">${stat('pv','Pontos de Vida')}${stat('pd','Pontos de Determinação')}</div>
+<div class="pavor-wrap"><button type="button" id="pavorBtn" class="pavor" aria-pressed="${pavor}" onclick="togglePavor()">PAVOR</button></div>`}
 if(tab=='pericias'){
-h=`<div class="box"><h2>Perícias</h2><p class="mute">Escolha o dado de cada perícia e clique em Rolar.</p>`+SK.map(([n,cat,desc])=>{const ap=n=='Aptidão';
-return `<div class="sk"><span><b>${n}</b> <span class="mute">${cat}</span>${ap?sel(APT,c.apsub,'class="sub" data-p="apsub" aria-label="Campo da aptidão"'):''}<small>${ap?esc(APTD[c.apsub]):esc(desc)}</small></span>${sel(DADOS,c.dado[n]||'—',`data-sk="${n}" aria-label="Dado de ${n}"`)}<button onclick="rolar('${n}')">Rolar</button></div>`}).join('')+`</div>`}
+h=`<div class="box"><h2>Perícias</h2><p class="mute">Todas começam em d4. Escolha o dado de cada perícia e clique em Rolar.</p>`+SK.map(([n,cat,desc])=>{const ap=n=='Aptidão',cu=ap&&c.apsub=='Outra';
+return `<div class="sk"><span><b>${n}</b> <span class="mute">${cat}</span>${ap?sel(APT,c.apsub,'class="sub" data-p="apsub" aria-label="Campo da aptidão"'):''}${cu?`<span class="apc"><input data-p="apnome" value="${esc(c.apnome)}" placeholder="Nome da sua aptidão" aria-label="Nome da aptidão própria"><input data-p="apdesc" value="${esc(c.apdesc)}" placeholder="O que ela cobre (opcional)" aria-label="Descrição da aptidão própria"></span>`:`<small>${ap?esc(APTD[c.apsub]):esc(desc)}</small>`}</span>${sel(DADOS,dieOf(c,n),`data-sk="${n}" aria-label="Dado de ${n}"`)}<button onclick="rolar('${n}')">Rolar</button></div>`}).join('')+`<div class="help"><p><b>Regra de Criação:</b> Todas começam em d4. Distribua 12 pontos (d6 = 1 pt | d8 = 2 pts | d10 = 3 pts). Mas só uma pode ter 1d10.</p></div></div>`}
 if(tab=='combate'){
 h=`<div class="box"><h2>Defesa e proteção</h2><div class="grid g2">
-<label>Defesa<div style="font:28px 'Special Elite'">7</div></label>
-<label>Proteção<input data-p="prot" value="${esc(c.prot)}"></label></div></div>
+<label>Defesa total<div style="font:28px 'Special Elite'" id="defTot">${DEF_BASE+c.prot}</div><span class="mute" id="defBrk">${DEF_BASE} natural + ${c.prot} de proteção</span></label>
+<label>Proteção (armadura)<input type="number" min="0" data-p="prot" data-num="1" value="${c.prot}"></label></div></div>
 <div class="box"><h2>Habilidades e poderes</h2><textarea data-p="habs" placeholder="Habilidades, poderes e características">${esc(c.habs)}</textarea></div>`}
 if(tab=='inv'){
-h=`<div class="box"><h2>Inventário</h2><p>Carga: <b data-out="carga"></b> / <b data-out="cargaMax"></b> espaços</p>${c.itens.map((a,i)=>`<div class="row"><label>Item<input data-l="itens" data-i="${i}" data-k="nome" value="${esc(a.nome)}"></label><label>Espaços<input type="number" step="0.5" min="0" data-l="itens" data-i="${i}" data-k="esp" data-num="1" value="${a.esp||0}"></label><label>Qtd.<input type="number" min="1" data-l="itens" data-i="${i}" data-k="qtd" data-num="1" value="${a.qtd||1}"></label><span></span><button onclick="rm('itens',${i})">×</button></div>`).join('')||'<p class="mute">Inventário vazio.</p>'}<button onclick="add('itens',{nome:'',esp:1,qtd:1})">Adicionar item</button></div>`}
+const optI=l=>l.map(x=>`<option value="${esc(x[0])}">${esc(x[0])} · ${x[2]} esp.</option>`).join('');
+const itemSel=(a,i)=>{const inf=itemInfo(a.nome),cu=a.custom||(a.nome&&!inf),v=cu?'__custom':(inf?a.nome:'');
+return `<select data-isel="${i}" aria-label="Item"><option value="">Escolha um item…</option><optgroup label="Itens">${optI(ITENS)}</optgroup><optgroup label="Herança (se tiver a habilidade)">${optI(ITENS_HER)}</optgroup><option value="__custom">Outro item (personalizado)…</option></select>`.replace(`value="${esc(v)}"`,`value="${esc(v)}" selected`)};
+h=`<div class="box"><h2>Inventário</h2><p>Carga: <b data-out="carga"></b> / <b data-out="cargaMax"></b> espaços</p>${c.itens.map((a,i)=>{const inf=itemInfo(a.nome),cu=a.custom||(a.nome&&!inf);return `<div class="row irow"><label>Item${itemSel(a,i)}</label><label>Espaços<input type="number" step="0.5" min="0" data-l="itens" data-i="${i}" data-k="esp" data-num="1" value="${a.esp||0}"></label><label>Qtd.<input type="number" min="1" data-l="itens" data-i="${i}" data-k="qtd" data-num="1" value="${a.qtd||1}"></label><span></span><button onclick="rm('itens',${i})" aria-label="Remover item">×</button>${cu?`<div class="idesc"><input data-l="itens" data-i="${i}" data-k="nome" value="${esc(a.nome)}" placeholder="Nome do item" aria-label="Nome do item personalizado"></div>`:inf?`<div class="idesc mute">${esc(inf[1])}</div>`:''}</div>`}).join('')||'<p class="mute">Inventário vazio.</p>'}<button onclick="add('itens',{nome:'',esp:1,qtd:1})">Adicionar item</button></div>`}
 if(tab=='rituais'){
 h=`<div class="box"><h2>Rituais</h2>${c.rituais.map((a,i)=>`<div class="box"><div class="row"><label>Nome<input data-l="rituais" data-i="${i}" data-k="nome" value="${esc(a.nome)}"></label><label>Elemento${sel(ELEM,a.elem||'Sangue',`data-l="rituais" data-i="${i}" data-k="elem"`)}</label><label>Círculo${sel([1,2,3,4],a.circ||1,`data-l="rituais" data-i="${i}" data-k="circ"`)}</label><label>Custo (PD)<input type="number" min="0" data-l="rituais" data-i="${i}" data-k="custo" data-num="1" value="${a.custo||0}"></label><span><button onclick="gastar(${a.custo||0})">Conjurar</button> <button onclick="rm('rituais',${i})">×</button></span></div><textarea data-l="rituais" data-i="${i}" data-k="desc" placeholder="Execução, alcance, alvo, duração, efeito">${esc(a.desc)}</textarea></div>`).join('')||'<p class="mute">Nenhum ritual conhecido.</p>'}<button onclick="add('rituais',{nome:'',elem:'Sangue',circ:1,custo:1,desc:''})">Adicionar ritual</button></div>`}
-if(tab=='notas'){h=`<div class="box"><h2>História</h2><textarea style="min-height:160px" data-p="hist">${esc(c.hist)}</textarea></div><div class="box"><h2>Anotações</h2><textarea style="min-height:200px" data-p="notas">${esc(c.notas)}</textarea></div>`}
+if(tab=='notas'){h=`<div class="box"><h2>Relações</h2><p class="mute">Marque os círculos da relação, informe o nome da pessoa e descreva o que você sente por ela. Cada círculo marcado libera um dado: <b>1 círculo = 1d8</b> · <b>2 círculos = 1d10</b> · <b>3 círculos = 1d12</b>.</p>${c.rels.map((r,i)=>`<div class="rel"><div class="rel-top"><label>Nome da pessoa<input data-l="rels" data-i="${i}" data-k="nome" value="${esc(r.nome)}"></label><div class="circ" role="group" aria-label="Marcas da relação">${[0,1,2].map(j=>`<label class="cb"><input type="checkbox" data-rel="${i}" data-j="${j}"${r.marcas[j]?' checked':''} aria-label="Marca ${j+1}"><i></i></label>`).join('')}</div><button type="button" class="rdie" id="rd_${i}" onclick="rolarRel(${i})"${relDie(r)?'':' disabled'}>${relBtn(r)}</button><button onclick="rm('rels',${i})" aria-label="Remover relação">×</button></div><textarea data-l="rels" data-i="${i}" data-k="desc" placeholder="O que você sente por essa pessoa">${esc(r.desc)}</textarea></div>`).join('')||'<p class="mute">Nenhuma relação criada.</p>'}<button onclick="add('rels',{nome:'',desc:'',marcas:[false,false,false]})">Adicionar relação</button></div><div class="box"><h2>Anotações</h2><textarea style="min-height:200px" data-p="notas">${esc(c.notas)}</textarea></div>`}
 $('view').innerHTML=h;applyFotoPos();bindPortraitDrag();updA();calc();sync()}
 
 /* Arrastar o retrato diretamente no quadro */
@@ -390,19 +433,44 @@ function bindPortraitDrag(){
 }
 
 function calc(){const c=char;
+const dt=$('defTot');if(dt){dt.textContent=DEF_BASE+(+c.prot||0);$('defBrk').textContent=`${DEF_BASE} natural + ${+c.prot||0} de proteção`}
 document.querySelectorAll('[data-out]').forEach(e=>{e.textContent=e.dataset.out=='cargaMax'?espDie(c.attrs.FIS):c.itens.reduce((s,i)=>s+(+i.esp||0)*(+i.qtd||1),0)});
 const f=document.querySelector('[data-out="carga"]');if(f)f.style.color=(+f.textContent>+document.querySelector('[data-out="cargaMax"]').textContent)?'#d2553f':''}
 function setv(k,v){const c=char,b=k.replace('Max','');c[k]=Math.max(0,Math.floor(+v||0));if(c[b]>c[b+'Max'])c[b]=c[b+'Max'];save()}
-function sync(){const c=char;['pv','pd'].forEach(k=>{const a=$('in_'+k),b=$('in_'+k+'Max');if(a&&document.activeElement!==a)a.value=c[k];if(b&&document.activeElement!==b)b.value=c[k+'Max'];const m=$('mt_'+k);if(m)m.style.width=(c[k+'Max']?Math.min(100,c[k]/c[k+'Max']*100):0)+'%'})}
+let hpPrev={};
+function hit(bar,n){
+  bar.classList.remove('hit');void bar.offsetWidth;bar.classList.add('hit');
+  const x=document.createElement('span');x.className='dmg';x.textContent='−'+n;bar.appendChild(x);setTimeout(()=>x.remove(),900);
+  clearTimeout(bar._t);bar._t=setTimeout(()=>bar.classList.remove('hit'),450);
+}
+function sync(){const c=char;['pv','pd'].forEach(k=>{
+  const a=$('in_'+k),b=$('in_'+k+'Max');
+  if(a&&document.activeElement!==a)a.value=c[k];
+  if(b&&document.activeElement!==b)b.value=c[k+'Max'];
+  const bar=$('hp_'+k);if(!bar)return;
+  const v=c[k],m=c[k+'Max'],pct=m?Math.min(100,v/m*100):0,prev=hpPrev[k];
+  bar.style.setProperty('--max',Math.max(1,m));
+  bar.classList.toggle('up',prev!==undefined&&v>prev);
+  $('hf_'+k).style.width=pct+'%';$('ht_'+k).style.width=pct+'%';
+  $('hx_'+k).textContent=v+' / '+m;
+  bar.classList.toggle('low',m>0&&v>0&&v/m<=.25);bar.classList.toggle('zero',v<=0);
+  if(prev!==undefined&&v<prev)hit(bar,prev-v);
+  hpPrev[k]=v})}
 function adj(k,d){setv(k,char[k]+d);sync()}
 function gastar(n){const c=char;if(c.pd<n){say('PD insuficiente para conjurar ('+c.pd+'/'+n+').');return}c.pd-=n;save();sync();say('Ritual conjurado: −'+n+' PD (restam '+c.pd+').')}
 function add(l,o){char[l].push(o);save();render()}
 function rm(l,i){char[l].splice(i,1);save();render()}
 const d=n=>1+Math.floor(Math.random()*n);
 function say(t){$('log').textContent=t}
-function rolar(n){const c=char,die=c.dado[n]||'—',nm=n=='Aptidão'?`Aptidão (${c.apsub})`:n;
-if(die=='—'){say(`${nm}: escolha um dado antes de rolar.`);return}
+function rolar(n){const c=char,die=dieOf(c,n),nm=n=='Aptidão'?`Aptidão (${aptNome(c)})`:n;
 const f=+die.slice(1),r=d(f);say(`${nm}: ${die} → ${r}${r==f?' (máximo!)':r==1?' (1)':''}`)}
+function updRel(i){const r=char.rels[i],b=$('rd_'+i);if(!b)return;b.textContent=relBtn(r);b.disabled=!relDie(r)}
+function rolarRel(i){const r=char.rels[i],die=relDie(r);if(!die)return;const f=+die.slice(1),n=d(f);say(`Relação${r.nome?' com '+r.nome:''}: 1${die} → ${n}${n==f?' (máximo!)':n==1?' (1)':''}`)}
+function pickItem(i,v){const a=char.itens[i];
+if(v=='__custom'){a.custom=true;if(itemInfo(a.nome))a.nome=''}
+else if(!v){a.nome='';a.custom=false}
+else{a.nome=v;a.custom=false;a.esp=itemInfo(v)[2]}
+save();render()}
 
 function setA(k,x){const c=char,antes=gasto(c),novo=antes-COST[c.attrs[k]]+COST[x];
 if(novo>PTS&&novo>antes){say(`Pontos insuficientes para ${AN[k]} ${x}: restam ${PTS-antes}, custa ${COST[x]}.`);return}
@@ -451,8 +519,11 @@ if(t.dataset.p){const ks=t.dataset.p.split('.');let o=c;for(let i=0;i<ks.length-
 else if(t.dataset.l){c[t.dataset.l][t.dataset.i][t.dataset.k]=t.dataset.num?(+t.value||0):t.value}
 else return;save();calc()});
 document.addEventListener('change',e=>{const t=e.target,c=char;
+if(t.dataset.isel!==undefined){pickItem(+t.dataset.isel,t.value);return}
+if(t.dataset.rel!==undefined){c.rels[+t.dataset.rel].marcas[+t.dataset.j]=t.checked;save();updRel(+t.dataset.rel);return}
 if(t.dataset.sk){c.dado[t.dataset.sk]=t.value;save();return}
 if(t.tagName=='SELECT'&&(t.dataset.p||t.dataset.l)){save();render()}});
+try{setPavor(localStorage.getItem('op_pavor')=='1')}catch(e){}
 load().then(render);
 </script>
 </body>
