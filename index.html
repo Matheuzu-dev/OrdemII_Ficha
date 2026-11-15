@@ -4,8 +4,8 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cidadãos de Bálcãs</title>
-<link rel="stylesheet" href="style.css">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div id="smoke" aria-hidden="true"><i></i><i></i></div>
@@ -75,7 +75,7 @@ const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['i
 let char=null,tab='ficha',pavor=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',rels:[]}}
+function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',rels:[],impeto:0,analise:0}}
 
 /* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
 const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
@@ -108,6 +108,7 @@ function fix(c){
   c.fotoPos=Object.assign({z:100,x:50,y:50},c.fotoPos||{},{s:320});
   c.prot=parseInt(c.prot)||0;
   if(!APT.includes(c.apsub))c.apsub='Artes';
+  c.impeto=Math.max(0,Math.min(5,parseInt(c.impeto)||0));c.analise=Math.max(0,Math.min(4,parseInt(c.analise)||0));
   c.rels=(Array.isArray(c.rels)?c.rels:[]).map(r=>({nome:r.nome||'',desc:r.desc||'',marcas:[0,1,2].map(j=>!!(r.marcas&&r.marcas[j]))}));
   if(c.hist){c.notas=(c.notas?c.notas+'\n\n':'')+'História:\n'+c.hist;c.hist=''}
   return c;
@@ -254,7 +255,7 @@ function sheetBody(c,n){
   const itens=c.itens.length?`<table class="sh-tb"><tr><th>Item</th><th>Descrição</th><th>Espaços</th><th>Qtd.</th></tr>${c.itens.map(i=>{const f=itemInfo(i.nome);return `<tr><td>${esc(i.nome||'Item sem nome')}</td><td>${f?esc(f[1]):''}</td><td>${+i.esp||0}</td><td>${+i.qtd||1}</td></tr>`}).join('')}</table>`:'<p>(Nenhum item)</p>';
   const rit=c.rituais.length?c.rituais.map(r=>`<div class="sh-rit"><b>${esc(r.nome||'Ritual sem nome')}</b> <small>${esc(r.elem||'Sangue')} · ${r.circ||1}º círculo · ${r.custo||0} PD</small><div class="sh-txt">${esc(r.desc||'')}</div></div>`).join(''):'<p>(Nenhum ritual)</p>';
   return `<h1>Cidadãos de Bálcãs</h1>
-<div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span></div></div>
+<div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span>${c.perfil=='Executor'?`<b>Ímpeto</b><span>${c.impeto} / 5</span>`:c.perfil=='Analista'?`<b>Análise</b><span>${c.analise} / 4</span>`:''}</div></div>
 <h2>Atributos</h2><div class="sh-3">${A.map(k=>`<div class="sh-card"><small>${AN[k]}</small><big>${c.attrs[k]}</big></div>`).join('')}</div>
 <h2>Pontos</h2><div class="sh-2"><div class="sh-card"><small>Pontos de Vida</small><big>${c.pv} / ${c.pvMax}</big></div><div class="sh-card"><small>Pontos de Determinação</small><big>${c.pd} / ${c.pdMax}</big></div></div>
 <h2>Perícias</h2><div class="sh-sk">${per}</div>
@@ -353,12 +354,46 @@ return `<div class="stat hp hp-${k}"><b>${n}</b>
 <div class="n"><span>Máximo</span><button onclick="adj('${k}Max',-1)" aria-label="Diminuir máximo">−</button><input type="number" id="in_${k}Max" data-st="${k}Max" value="${m}"><button onclick="adj('${k}Max',1)" aria-label="Aumentar máximo">+</button></div>
 <div class="mute" style="font-size:12px;margin-top:8px">Clique na barra para perder 1 ponto. Use + para recuperar.</div></div>`}
 
+
+/* ===== Habilidades exclusivas de perfil ===== */
+const MK_HEX='<svg viewBox="0 0 100 100" aria-hidden="true"><polygon class="sh" points="50,6 91,28 91,72 50,94 9,72 9,28"/></svg>';
+const MK_D6=`<svg viewBox="0 0 100 100" aria-hidden="true"><g class="f1"><polygon class="sh" points="50,6 90,28 50,50 10,28"/><polygon class="sd" points="50,6 90,28 50,50 10,28"/></g><g class="f2"><polygon class="sh" points="10,28 50,50 50,94 10,72"/><polygon class="sd" points="10,28 50,50 50,94 10,72"/></g><g class="f3"><polygon class="sh" points="50,50 90,28 90,72 50,94"/><polygon class="sd" points="50,50 90,28 90,72 50,94"/></g><g transform="matrix(20 -11 20 11 50 28)"><circle class="pp" r=".2"/></g><g transform="matrix(20 11 0 22 30 61)"><circle class="pp" cx="-.5" cy="-.5" r=".2"/><circle class="pp" cx=".5" cy=".5" r=".2"/></g><g transform="matrix(20 -11 0 22 70 61)"><circle class="pp" cx="-.5" cy="-.5" r=".2"/><circle class="pp" r=".2"/><circle class="pp" cx=".5" cy=".5" r=".2"/></g></svg>`;
+function perfilBox(c){
+  const p=c.perfil;
+  if(p=='Executor'){
+    const n=c.impeto;
+    return `<div class="perfil-hab" id="perfilBox"><h3>Executor</h3>
+<p class="ph-desc">Você age primeiro e pensa depois. E, se não der certo da primeira vez, tenta de novo até conseguir, vencendo pela força de sua perseverança.</p>
+<h4>Ímpeto</h4>
+<p>Você possui uma barra de ímpeto, com cinco espaços. Sempre que faz um teste e falha, você preenche um espaço na barra de ímpeto. Como uma ação livre, você pode gastar espaços da barra de ímpeto para receber benefícios.</p>
+<div class="marks" role="group" aria-label="Barra de ímpeto">${[0,1,2,3,4].map(i=>`<button type="button" class="mk${i<n?' on':''}" role="checkbox" aria-checked="${i<n}" aria-label="Espaço ${i+1} do ímpeto" onclick="setMk('impeto',${i},5)">${MK_HEX}</button>`).join('')}<span class="cnt">${n} / 5</span><button type="button" class="mini" onclick="clearMk('impeto')">Esvaziar</button></div>
+<ul><li><b>1 espaço.</b> Você recebe +1d4△</li><li><b>3 espaços.</b> Você aumenta um atributo em um passo até o fim da cena.</li><li><b>3 espaços.</b> Em cenas de conflito, você faz uma ação extra.</li></ul>
+<p>No fim da cena, sua barra de ímpeto esvazia.</p></div>`}
+  if(p=='Analista'){
+    const n=c.analise;
+    return `<div class="perfil-hab" id="perfilBox"><h3>Analista</h3>
+<p class="ph-desc">Você observa, entende e se prepara, para só então agir. Pode demorar para tomar uma atitude, mas quando o faz, é com a maior precisão possível.</p>
+<h4>Análise</h4>
+<p>Você pode gastar uma ação para receber 2 marcadores de análise. Quando faz um teste, pode gastar quantos marcadores quiser após rolar os dados. Para cada marcador gasto, pode mudar o resultado de um dado em +1 ou –1 (até o máximo do dado). Você pode acumular no máximo 4 marcadores de análise e, no fim da cena, perde quaisquer marcadores não usados.</p>
+<div class="marks" role="group" aria-label="Marcadores de análise">${[0,1,2,3].map(i=>`<button type="button" class="mk${i<n?' on':''}" role="checkbox" aria-checked="${i<n}" aria-label="Marcador de análise ${i+1}" onclick="setMk('analise',${i},4)">${MK_D6}</button>`).join('')}<span class="cnt">${n} / 4</span><button type="button" class="mini" onclick="addMk('analise',2,4)">Ação: +2</button><button type="button" class="mini" onclick="clearMk('analise')">Zerar</button></div></div>`}
+  if(p=='Vigilante'){
+    return `<div class="perfil-hab" id="perfilBox"><h3>Vigilante</h3>
+<p class="ph-desc">Você está sempre atento aos arredores, aproveitando as brechas perfeitas para agir primeiro. Se adapta a imprevistos e não tem problemas em tomar decisões sob pressão.</p>
+<h4>Prontidão</h4>
+<p>Uma vez por rodada, quando você ou outro ser em alcance curto faz um teste, você pode gastar 2 PD para rolar novamente, ou para fazer o outro ser rolar novamente, um dos dados do teste cujo resultado não tenha sido 1. Além disso, em combates, você pode fazer sua ação na fase dela ou em fases posteriores, e após qualquer ação daquela fase já ter sido rolada.</p></div>`}
+  return '';
+}
+function refreshPerfil(){const e=$('perfilBox');if(e)e.outerHTML=perfilBox(char)}
+function setMk(k,i,max){char[k]=(char[k]==i+1)?i:i+1;save();refreshPerfil()}
+function addMk(k,n,max){char[k]=Math.min(max,char[k]+n);save();refreshPerfil()}
+function clearMk(k){char[k]=0;save();refreshPerfil()}
+
 function render(){hpPrev={};head();const c=char,fp=c.fotoPos||{z:100,x:50,y:50};let h='';
 if(tab=='ficha'){
 h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <label>Nome<input data-p="nome" value="${esc(c.nome)}"></label>
 <label>Aptidão<input data-p="aptidao" value="${esc(c.aptidao)}" placeholder="Ex.: Artes, Guerra"></label>
-<label>Perfil${sel(PERF,c.perfil,'data-p="perfil"')}</label></div></div>
+<label>Perfil${sel(PERF,c.perfil,'data-p="perfil"')}</label></div>${perfilBox(c)}</div>
 
 <div class="box"><h2>Retrato / Ícone</h2>
 <div class="portrait-wrap">
