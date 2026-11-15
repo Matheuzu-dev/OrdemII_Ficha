@@ -212,3 +212,28 @@ html:root[data-pavor="1"] #log::before{animation-duration:6s}
 dialog .bar button{padding:8px 14px}
 @media print{header,main,#log,dialog,#smoke,body::before,body::after{display:none!important}
 #printSheet{display:block}body{background:#fff;color:#000;padding:0}@page{margin:14mm}}
+
+/* ===== Habilidades de perfil ===== */
+.perfil-hab{margin-top:14px;padding-top:12px;border-top:1px solid rgba(128,128,128,.35)}
+.perfil-hab h3{margin:0 0 4px;font:20px 'Special Elite',serif;letter-spacing:.04em}
+.perfil-hab .ph-desc{font-style:italic;margin:0 0 10px;opacity:.85}
+.perfil-hab h4{margin:12px 0 6px;font-size:14px;letter-spacing:.08em;text-transform:uppercase}
+.perfil-hab p{margin:6px 0}
+.perfil-hab ul{margin:6px 0;padding-left:20px}
+.perfil-hab li{margin:4px 0}
+.marks{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:10px 0}
+.mk{all:unset;cursor:pointer;display:inline-flex;width:46px;height:46px;color:inherit;transition:transform .12s}
+.mk:hover{transform:scale(1.08)}
+.mk:focus-visible{outline:2px solid currentColor;outline-offset:2px;border-radius:6px}
+.mk svg{width:100%;height:100%;overflow:visible}
+.mk .sh{fill:transparent;stroke:currentColor;stroke-width:5;stroke-linejoin:round;opacity:.55;transition:fill .15s,opacity .15s}
+.mk .pp{fill:currentColor;opacity:.55}
+.mk .sd{fill:#000;opacity:0;stroke:none;transition:opacity .15s}
+.mk.on .sh{fill:var(--ac);stroke:var(--ac);opacity:1}
+.mk.on .sd{opacity:0}
+.mk.on .f2 .sd{opacity:.22}
+.mk.on .f3 .sd{opacity:.42}
+.mk.on .sh{stroke:rgba(0,0,0,.35);stroke-width:3}
+.mk.on .pp{fill:#fff;opacity:1}
+.marks .cnt{font:16px 'Special Elite',serif;margin-left:6px}
+.marks button.mini{padding:4px 10px;font-size:13px}
