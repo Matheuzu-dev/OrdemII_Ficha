@@ -80,7 +80,7 @@ const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['i
 let char=null,tab='ficha',pavor=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function blank(){return{nome:'Novo cidadão',aptidao:'',nivel:1,perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',habOwn:{},rels:[],impeto:0,analise:0}}
+function blank(){return{nome:'Novo cidadão',aptidao:'',nivel:1,perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:14,pvMax:14,pd:12,pdMax:12,pdAttr:'EMO',pvBonus:0,pdBonus:0,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',habOwn:{},rels:[],impeto:0,analise:0}}
 
 /* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
 const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
@@ -106,10 +106,30 @@ function save(){
   try{const{foto,...resto}=char;localStorage.setItem(LS,JSON.stringify(resto))}
   catch(e){say('Aviso: armazenamento cheio.')}
 }
+/* PV = dado de Físico + 10 · PD = 8 + dado de Emoção ou Mente (escolha do jogador) · máximos automáticos */
+const dieNum=x=>+String(x).slice(1)||4;
+const pvBase=c=>dieNum(c.attrs.FIS)+10;
+const pdBase=c=>8+dieNum(c.attrs[c.pdAttr]);
+function applyMax(c,keepFull){
+  const oPv=+c.pvMax,oPd=+c.pdMax,nPv=pvBase(c)+c.pvBonus,nPd=pdBase(c)+c.pdBonus;
+  c.pvMax=Math.max(1,nPv);c.pdMax=Math.max(1,nPd);
+  c.pv=(keepFull&&c.pv>=oPv)?c.pvMax:Math.max(0,Math.min(c.pvMax,c.pv));
+  c.pd=(keepFull&&c.pd>=oPd)?c.pdMax:Math.max(0,Math.min(c.pdMax,c.pd));
+}
+const fBonus=b=>b?(b>0?` + ${b}`:` − ${-b}`)+' (bônus)':'';
+function formulaTxt(k){
+  const c=char;
+  return k=='pv'?`Físico ${c.attrs.FIS} (${dieNum(c.attrs.FIS)}) + 10${fBonus(c.pvBonus)}`
+                :`8 + ${AN[c.pdAttr]} ${c.attrs[c.pdAttr]} (${dieNum(c.attrs[c.pdAttr])})${fBonus(c.pdBonus)}`;
+}
 function fix(c){
   c=Object.assign(blank(),c);
   const o=c.attrs||{};
   c.attrs={FIS:toDie(o.FIS??o.FOR),MEN:toDie(o.MEN??o.INT),EMO:toDie(o.EMO??o.PRE)};
+  c.pdAttr=c.pdAttr=='MEN'?'MEN':'EMO';
+  c.pvBonus=parseInt(c.pvBonus)||0;c.pdBonus=parseInt(c.pdBonus)||0;
+  c.pv=parseInt(c.pv)||0;c.pd=parseInt(c.pd)||0;c.pvMax=parseInt(c.pvMax)||0;c.pdMax=parseInt(c.pdMax)||0;
+  applyMax(c,true);
   c.fotoPos=Object.assign({z:100,x:50,y:50},c.fotoPos||{},{s:320});
   c.prot=parseInt(c.prot)||0;c.nivel=Math.max(1,Math.min(99,parseInt(c.nivel)||1));
   c.habOwn=(c.habOwn&&typeof c.habOwn=='object'&&!Array.isArray(c.habOwn))?c.habOwn:{};
@@ -351,14 +371,11 @@ function applyFotoPos(){
 }
 addEventListener('resize',applyFotoPos);
 
-function stat(k,n){const v=char[k],m=char[k+'Max'],pct=m?Math.min(100,v/m*100):0;
-return `<div class="stat hp hp-${k}"><b>${n}</b>
-<div class="hpbar" id="hp_${k}" style="--max:${Math.max(1,m)}" role="button" tabindex="0" aria-label="${n}: clique para perder 1 ponto" onclick="adj('${k}',-1)" onkeydown="if(event.key=='Enter'||event.key==' '){event.preventDefault();adj('${k}',-1)}">
-<div class="hp-in"><div class="hp-trail" id="ht_${k}" style="width:${pct}%"></div><div class="hp-fill" id="hf_${k}" style="width:${pct}%"></div></div>
-<div class="hp-txt" id="hx_${k}">${v} / ${m}</div></div>
-<div class="n"><span>Atual</span><button onclick="adj('${k}',-1)" aria-label="Diminuir atual">−</button><input type="number" id="in_${k}" data-st="${k}" value="${v}"><button onclick="adj('${k}',1)" aria-label="Aumentar atual">+</button></div>
-<div class="n"><span>Máximo</span><button onclick="adj('${k}Max',-1)" aria-label="Diminuir máximo">−</button><input type="number" id="in_${k}Max" data-st="${k}Max" value="${m}"><button onclick="adj('${k}Max',1)" aria-label="Aumentar máximo">+</button></div>
-<div class="mute" style="font-size:12px;margin-top:8px">Clique na barra para perder 1 ponto. Use + para recuperar.</div></div>`}
+function vrow(k,n){const c=char,pd=k=='pd';
+return `<div class="vrow vr-${k}" id="vr_${k}"><span class="vlab" title="${n}">${k.toUpperCase()}</span>
+<div class="vmain"><div class="vval" id="vv_${k}"><input type="number" class="vcur" id="in_${k}" data-st="${k}" min="0" value="${c[k]}" aria-label="${n} atuais"><span class="vmax" id="vm_${k}" title="Máximo calculado automaticamente">/${c[k+'Max']}</span></div>
+<button type="button" class="vb" onclick="adj('${k}',-1)" aria-label="Perder 1 ${n}">−</button><button type="button" class="vb" onclick="adj('${k}',1)" aria-label="Recuperar 1 ${n}">+</button></div>
+<div class="vsub"><span class="vform" id="vf_${k}"></span>${pd?`<label class="vsel">Base do PD<select data-pdattr aria-label="Atributo base do PD"><option value="EMO"${c.pdAttr=='EMO'?' selected':''}>Emoção</option><option value="MEN"${c.pdAttr=='MEN'?' selected':''}>Mente</option></select></label>`:''}<label class="vsel">Bônus<input type="number" step="1" data-bonus="${k}" value="${c[k+'Bonus']||0}" aria-label="Bônus de ${n}"></label></div></div>`}
 
 
 /* ===== Habilidades exclusivas de perfil ===== */
@@ -479,7 +496,7 @@ h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <p><b>Físico e inventário:</b> cada passo do dado de Físico soma 5 espaços: d4 = 5, d6 = 10, d8 = 15, d10 = 20.</p>
 <p><b>Rituais:</b> alguns rituais podem levar um atributo além do d10, para <b>d12</b> ou <b>d20</b> (Físico d12 = 25 espaços, d20 = 30). Esses dados não custam pontos extras: contam como os 3 pontos do d10. Use os botões "Ritual" só quando um ritual permitir.</p>
 <p>Clique no dado para rolar o atributo.</p></div></div>
-<div class="stats">${stat('pv','Pontos de Vida')}${stat('pd','Pontos de Determinação')}</div>
+<div class="vit">${vrow('pv','Pontos de Vida')}${vrow('pd','Pontos de Determinação')}</div>
 <div class="pavor-wrap"><button type="button" id="pavorBtn" class="pavor" aria-pressed="${pavor}" onclick="togglePavor()">PAVOR</button></div>`}
 if(tab=='pericias'){
 h=`<div class="box"><h2>Perícias</h2><p class="mute">Todas começam em d4. Escolha o dado de cada perícia e clique em Rolar.</p>`+SK.map(([n,cat,desc])=>{const ap=n=='Aptidão',cu=ap&&c.apsub=='Outra';
@@ -522,25 +539,20 @@ function calc(){const c=char;
 const dt=$('defTot');if(dt){dt.textContent=DEF_BASE+(+c.prot||0);$('defBrk').textContent=`${DEF_BASE} natural + ${+c.prot||0} de proteção`}
 document.querySelectorAll('[data-out]').forEach(e=>{e.textContent=e.dataset.out=='cargaMax'?espDie(c.attrs.FIS):c.itens.reduce((s,i)=>s+(+i.esp||0)*(+i.qtd||1),0)});
 const f=document.querySelector('[data-out="carga"]');if(f)f.style.color=(+f.textContent>+document.querySelector('[data-out="cargaMax"]').textContent)?'#d2553f':''}
-function setv(k,v){const c=char,b=k.replace('Max','');c[k]=Math.max(0,Math.floor(+v||0));if(c[b]>c[b+'Max'])c[b]=c[b+'Max'];save()}
+function setv(k,v){const c=char;c[k]=Math.max(0,Math.min(c[k+'Max'],Math.floor(+v||0)));save()}
 let hpPrev={};
-function hit(bar,n){
-  bar.classList.remove('hit');void bar.offsetWidth;bar.classList.add('hit');
-  const x=document.createElement('span');x.className='dmg';x.textContent='−'+n;bar.appendChild(x);setTimeout(()=>x.remove(),900);
-  clearTimeout(bar._t);bar._t=setTimeout(()=>bar.classList.remove('hit'),450);
+function hit(el,n){
+  el.classList.remove('hit');void el.offsetWidth;el.classList.add('hit');
+  const x=document.createElement('span');x.className='dmg';x.textContent='−'+n;el.appendChild(x);setTimeout(()=>x.remove(),900);
+  clearTimeout(el._t);el._t=setTimeout(()=>el.classList.remove('hit'),450);
 }
 function sync(){const c=char;['pv','pd'].forEach(k=>{
-  const a=$('in_'+k),b=$('in_'+k+'Max');
-  if(a&&document.activeElement!==a)a.value=c[k];
-  if(b&&document.activeElement!==b)b.value=c[k+'Max'];
-  const bar=$('hp_'+k);if(!bar)return;
-  const v=c[k],m=c[k+'Max'],pct=m?Math.min(100,v/m*100):0,prev=hpPrev[k];
-  bar.style.setProperty('--max',Math.max(1,m));
-  bar.classList.toggle('up',prev!==undefined&&v>prev);
-  $('hf_'+k).style.width=pct+'%';$('ht_'+k).style.width=pct+'%';
-  $('hx_'+k).textContent=v+' / '+m;
-  bar.classList.toggle('low',m>0&&v>0&&v/m<=.25);bar.classList.toggle('zero',v<=0);
-  if(prev!==undefined&&v<prev)hit(bar,prev-v);
+  const a=$('in_'+k);if(!a)return;
+  if(document.activeElement!==a)a.value=c[k];
+  const v=c[k],m=c[k+'Max'],prev=hpPrev[k],row=$('vr_'+k);
+  $('vm_'+k).textContent='/'+m;$('vf_'+k).textContent=formulaTxt(k);
+  row.classList.toggle('low',m>0&&v>0&&v/m<=.25);row.classList.toggle('zero',v<=0);
+  if(prev!==undefined&&v<prev)hit($('vv_'+k),prev-v);
   hpPrev[k]=v})}
 function adj(k,d){setv(k,char[k]+d);sync()}
 function gastar(n){const c=char;if(c.pd<n){say('PD insuficiente para conjurar ('+c.pd+'/'+n+').');return}c.pd-=n;save();sync();say('Ritual conjurado: −'+n+' PD (restam '+c.pd+').')}
@@ -561,7 +573,7 @@ save();render()}
 
 function setA(k,x){const c=char,antes=gasto(c),novo=antes-COST[c.attrs[k]]+COST[x];
 if(novo>PTS&&novo>antes){say(`Pontos insuficientes para ${AN[k]} ${x}: restam ${PTS-antes}, custa ${COST[x]}.`);return}
-c.attrs[k]=x;save();updA();calc()}
+c.attrs[k]=x;applyMax(c,true);save();updA();calc();sync()}
 function updA(){const c=char,g=gasto(c),p=$('pts');if(!p)return;
 $('ptsN').textContent=g;$('ptsR').textContent=Math.max(0,PTS-g);$('ptsM').style.width=Math.min(100,g/PTS*100)+'%';p.classList.toggle('over',g>PTS);
 A.forEach(k=>{const el=$('at_'+k),cv=c.attrs[k],o=g-COST[cv];
@@ -602,10 +614,12 @@ svg._raf=requestAnimationFrame(step)}
 
 document.addEventListener('input',e=>{const t=e.target,c=char;
 if(t.dataset.st){setv(t.dataset.st,t.value);sync();return}
+if(t.dataset.bonus){c[t.dataset.bonus+'Bonus']=parseInt(t.value)||0;applyMax(c,true);save();sync();return}
 if(t.dataset.p){const ks=t.dataset.p.split('.');let o=c;for(let i=0;i<ks.length-1;i++)o=o[ks[i]];o[ks.pop()]=t.dataset.num?(+t.value||0):t.value}
 else if(t.dataset.l){c[t.dataset.l][t.dataset.i][t.dataset.k]=t.dataset.num?(+t.value||0):t.value}
 else return;save();calc()});
 document.addEventListener('change',e=>{const t=e.target,c=char;
+if(t.dataset.pdattr!==undefined){c.pdAttr=t.value=='MEN'?'MEN':'EMO';applyMax(c,true);save();sync();return}
 if(t.dataset.hown!==undefined){if(t.checked)c.habOwn[t.dataset.hown]=true;else delete c.habOwn[t.dataset.hown];save();t.closest('.hab').classList.toggle('own',t.checked);habCount();return}
 if(t.dataset.isel!==undefined){pickItem(+t.dataset.isel,t.value);return}
 if(t.dataset.rel!==undefined){c.rels[+t.dataset.rel].marcas[+t.dataset.j]=t.checked;save();updRel(+t.dataset.rel);return}
@@ -656,7 +670,7 @@ setInterval(()=>{
   if(calmo()||document.hidden)return;
   document.querySelectorAll('.el-energia').forEach(w=>{zap(w);if(Math.random()<.5)setTimeout(()=>zap(w),120+Math.random()*200)});
 },1400);
-/* ===== Cartão de personagem (PNG) + título "A Vigília" com efeito de derretimento ===== */
+/* ===== Cartão de personagem (PNG) + título "Contos de Bálcãs" com efeito de derretimento ===== */
 const FONT_TIT='"Grenze Gotisch","Pirata One","UnifrakturCook",Georgia,serif';
 const FONT_RUN='"Cinzel","Trajan Pro",Georgia,serif';
 const FONT_TXT='"IBM Plex Sans",system-ui,sans-serif';
@@ -908,13 +922,13 @@ async function exportarCartao(){
   }catch(e){console.error(e);$('ierr').textContent='Não foi possível gerar o cartão.'}
 }
 
-/* ===== Título do topo esquerdo: "A Vigília" derretendo ===== */
+/* ===== Título do topo esquerdo: "Contos de Bálcãs" derretendo ===== */
 async function desenharTitulo(){
   const host=$('brand');if(!host)return;
   await carregarFontes();
   const dpr=Math.min(3,window.devicePixelRatio||1),alvoH=74;
   const escuro=temaEscuro();
-  const t=textoDerretendo('A Vigília',Object.assign({size:58*dpr,seed:7,melt:.9,weight:700},escuro?{}:{color:'#14262b',tail:'rgba(24,128,143,.7)',glow:'rgba(24,128,143,.28)'}));
+  const t=textoDerretendo('Contos de Bálcãs',Object.assign({size:58*dpr,seed:7,melt:.9,weight:700},escuro?{}:{color:'#14262b',tail:'rgba(24,128,143,.7)',glow:'rgba(24,128,143,.28)'}));
   const cv=t.canvas;cv.style.height=(cv.height/dpr)+'px';cv.style.width=(cv.width/dpr)+'px';
   cv.setAttribute('aria-hidden','true');
   host.querySelectorAll('canvas').forEach(e=>e.remove());host.appendChild(cv);
