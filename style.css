@@ -253,3 +253,9 @@ dialog .bar button{padding:8px 14px}
 .hab p{margin:6px 0 0}
 .hab ul{margin:6px 0 0;padding-left:20px;list-style:"⬢  "}
 .hab li{margin:4px 0}
+
+/* Título "A Vigília": tinta derretendo, só a imagem; texto real fica para leitores de tela */
+.brand{margin:0;line-height:0;min-height:48px}
+.brand canvas{display:block;margin:-24px 0 -40px -14px;max-width:none}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+@media (max-width:560px){.brand canvas{transform:scale(.82);transform-origin:left top;margin-bottom:-52px}}
