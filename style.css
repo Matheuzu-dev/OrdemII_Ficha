@@ -4,7 +4,7 @@
 :root[data-theme="dark"]{--bg:#0b1114;--bg2:#141e22;--panel:rgba(18,27,31,.78);--ink:#dce8ea;--mute:#8ea3a7;--line:#27383d;--ac:#62d3e0;--field:#0b1114;--fog1:rgba(40,150,168,.24);--fog2:rgba(110,126,132,.18);--mist:rgba(50,100,112,.45)}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *,*::before,*::after{box-sizing:border-box}
-body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2)) fixed;color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding-bottom:100px}
+body{margin:0;background:linear-gradient(180deg,var(--bg),var(--bg2)) fixed;color:var(--ink);font:15px/1.5 "IBM Plex Sans",system-ui,sans-serif;padding-bottom:40px}
 body::before,body::after{content:"";position:fixed;inset:-20%;pointer-events:none;z-index:0}
 body::before{background:radial-gradient(40% 30% at 20% 30%,var(--fog1),transparent 70%),radial-gradient(45% 35% at 80% 60%,var(--fog2),transparent 70%),radial-gradient(50% 30% at 50% 90%,var(--fog1),transparent 70%);animation:drift 38s ease-in-out infinite alternate}
 body::after{background:radial-gradient(35% 28% at 70% 20%,var(--fog2),transparent 70%),radial-gradient(45% 30% at 30% 75%,var(--fog1),transparent 70%);animation:drift2 52s ease-in-out infinite alternate,fade 15s ease-in-out infinite}
@@ -106,12 +106,13 @@ label{display:block;font-size:13px;color:var(--mute)}
 .sk small{display:block;color:var(--mute);font-size:12px;line-height:1.35}
 .sk select.sub{width:auto;margin-left:6px;padding:2px 6px}
 .mute{color:var(--mute);font-size:13px}
-#log{position:fixed;left:0;right:0;bottom:0;background:var(--panel);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-top:2px solid var(--ac);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));font:16px "Special Elite",monospace;z-index:5}
+#log{position:fixed;left:0;right:0;bottom:0;background:var(--panel);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-top:2px solid var(--ac);padding:10px 16px calc(10px + env(safe-area-inset-bottom,0px));font:16px "Special Elite",monospace;z-index:5;opacity:0;visibility:hidden;transform:translateY(calc(100% + 80px));transition:transform .35s ease,opacity .35s ease,visibility 0s .35s}
+#log.show{opacity:1;visibility:visible;transform:none;transition:transform .35s ease,opacity .35s ease,visibility 0s}
 #log::before{content:"";position:absolute;left:0;right:0;bottom:100%;height:72px;pointer-events:none;background:linear-gradient(to top,var(--mist),transparent),radial-gradient(60% 100% at 30% 100%,var(--fog1),transparent 70%),radial-gradient(50% 100% at 75% 100%,var(--fog2),transparent 70%);background-size:100% 100%,140% 100%,140% 100%;animation:veil 16s ease-in-out infinite alternate}
 @keyframes veil{from{opacity:.5;background-position:0 0,0% 0,100% 0}to{opacity:1;background-position:0 0,100% 0,0% 0}}
 dialog{background:var(--bg);color:var(--ink);border:1px solid var(--ac);border-radius:6px;max-width:680px;width:92%}
 dialog textarea{min-height:260px;font:13px/1.45 "IBM Plex Sans",monospace;white-space:pre}
-@media (prefers-reduced-motion:reduce){body::before,body::after,#log::before,.portrait::after,.membrane,.membrane i,#smoke,#smoke i,.hpbar,.hpbar *,.pavor{animation:none!important;transition:none!important}}
+@media (prefers-reduced-motion:reduce){body::before,body::after,#log::before,.portrait::after,.membrane,.membrane i,#smoke,#smoke i,.hpbar,.hpbar *,.pavor,#log{animation:none!important;transition:none!important}}
 @media (max-width:640px){.row{grid-template-columns:1fr 1fr}.irow>label:first-child{grid-column:1/-1}.rel-top{grid-template-columns:auto 1fr auto}.rel-top>label:first-child{grid-column:1/-1}}
 .apc{display:grid;gap:4px;margin-top:4px}
 .apc input{padding:3px 6px;font-size:13px}
@@ -196,14 +197,17 @@ html:root[data-pavor="1"] #log::before{animation-duration:6s}
 .el-conhecimento::after{background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.65) 50%,transparent 60%) 0 0/250% 100% no-repeat;animation:shine 3.2s ease-in-out infinite}
 @keyframes shine{0%{background-position:130% 0}60%,100%{background-position:-30% 0}}
 .el-morte{box-shadow:0 0 8px 1px rgba(0,0,0,.7),0 0 3px 0 rgba(160,160,180,.35)}
-.el-morte select{background:#07070a;color:#e9e9ef;border-color:#3a3a44}
-.el-morte .sp{right:26px;top:50%;width:22px;height:22px;margin-top:-11px;z-index:3;color:#cfcfda;opacity:.9;animation:spin 5s linear infinite}
+.el-morte{overflow:hidden;background:radial-gradient(120% 220% at 70% 50%,#17171f,#050507)}
+.el-morte select{background:transparent;color:#e9e9ef;border-color:#3a3a44;text-shadow:0 0 4px #000,0 0 2px #000}
+.el-morte .sp{z-index:0;width:150px;height:150px;left:calc(68% - 75px);top:50%;margin-top:-75px;transform-origin:50% 50%;will-change:transform}
+.el-morte .sp1{animation:spin 26s linear infinite reverse;opacity:.9}
+.el-morte .sp2{animation:spin 11s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
-.el-energia{animation:auraE 3s ease-in-out infinite alternate}
+.el-energia{overflow:hidden;animation:auraE 3s ease-in-out infinite alternate}
 .el-energia select{background:linear-gradient(180deg,#7b3ff0,#4b1c8f);color:#f3e9ff;border-color:#9b5cff}
 @keyframes auraE{from{box-shadow:0 0 5px 0 rgba(139,92,246,.4)}to{box-shadow:0 0 13px 2px rgba(160,100,255,.7)}}
-.el-energia .bolt{z-index:3;width:12px;height:22px;animation:zap .8s ease-out forwards}
-@keyframes zap{0%{opacity:0}8%{opacity:1}20%{opacity:.2}30%{opacity:1}100%{opacity:0}}
+.el-energia .bolt{z-index:3;left:0;top:0;width:100%;height:100%;animation:zap .6s ease-out forwards}
+@keyframes zap{0%{opacity:0}6%{opacity:1}16%{opacity:.15}26%{opacity:1}40%{opacity:.4}100%{opacity:0}}
 .el-medo{animation:auraM 5s ease-in-out infinite alternate}
 .el-medo select{background:#1f2a2e;color:#d6e4e0;border-color:#5f7f78}
 @keyframes auraM{from{box-shadow:0 0 4px 0 rgba(95,127,120,.25)}to{box-shadow:0 0 10px 1px rgba(95,127,120,.5)}}
@@ -237,3 +241,15 @@ dialog .bar button{padding:8px 14px}
 .mk.on .pp{fill:#fff;opacity:1}
 .marks .cnt{font:16px 'Special Elite',serif;margin-left:6px}
 .marks button.mini{padding:4px 10px;font-size:13px}
+
+/* Habilidades por perfil */
+.hab{border:1px solid var(--line);border-radius:6px;padding:10px 12px;margin-bottom:8px;background:var(--panel)}
+.hab.own{border-color:var(--ac);box-shadow:inset 3px 0 0 var(--ac)}
+.hab-h{display:flex;align-items:center;gap:10px}
+.hab-h h4{margin:0;flex:1;font:400 16px "Special Elite",monospace;text-transform:uppercase;letter-spacing:.03em}
+.hab .tag{font-size:12px;border:1px solid var(--ac);color:var(--ac);border-radius:10px;padding:1px 9px;white-space:nowrap}
+.hab-ck{display:block;position:relative;width:22px;height:22px;flex:none;cursor:pointer}
+.hab-ck input{width:100%;height:100%;margin:0;padding:0;cursor:pointer;accent-color:var(--ac)}
+.hab p{margin:6px 0 0}
+.hab ul{margin:6px 0 0;padding-left:20px;list-style:"⬢  "}
+.hab li{margin:4px 0}
