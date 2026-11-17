@@ -9,6 +9,10 @@
 </head>
 <body>
 <div id="smoke" aria-hidden="true"><i></i><i></i></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+<filter id="smk" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".035" numOctaves="3" seed="4" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="14" xChannelSelector="R" yChannelSelector="G" result="d"/><feGaussianBlur in="d" stdDeviation="1.6"/></filter>
+<filter id="smk2" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".02" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="26" xChannelSelector="G" yChannelSelector="R" result="d"/><feGaussianBlur in="d" stdDeviation="4"/></filter>
+</defs></svg>
 <header>
   <h1>Cidadãos de Bálcãs</h1>
   <div class="bar">
@@ -20,7 +24,7 @@
   <nav class="tabs" id="tabs"></nav>
   <div id="view"></div>
 </main>
-<div id="log">Escolha um dado em uma perícia e clique em Rolar.</div>
+<div id="log" role="status" aria-live="polite"></div>
 <dialog id="dlg">
   <h2>Exportar / importar ficha</h2>
   <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, relações e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo.</p>
@@ -75,7 +79,7 @@ const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['i
 let char=null,tab='ficha',pavor=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',rels:[],impeto:0,analise:0}}
+function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',habOwn:{},rels:[],impeto:0,analise:0}}
 
 /* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
 const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
@@ -107,6 +111,7 @@ function fix(c){
   c.attrs={FIS:toDie(o.FIS??o.FOR),MEN:toDie(o.MEN??o.INT),EMO:toDie(o.EMO??o.PRE)};
   c.fotoPos=Object.assign({z:100,x:50,y:50},c.fotoPos||{},{s:320});
   c.prot=parseInt(c.prot)||0;
+  c.habOwn=(c.habOwn&&typeof c.habOwn=='object'&&!Array.isArray(c.habOwn))?c.habOwn:{};
   if(!APT.includes(c.apsub))c.apsub='Artes';
   c.impeto=Math.max(0,Math.min(5,parseInt(c.impeto)||0));c.analise=Math.max(0,Math.min(4,parseInt(c.analise)||0));
   c.rels=(Array.isArray(c.rels)?c.rels:[]).map(r=>({nome:r.nome||'',desc:r.desc||'',marcas:[0,1,2].map(j=>!!(r.marcas&&r.marcas[j]))}));
@@ -260,7 +265,7 @@ function sheetBody(c,n){
 <h2>Pontos</h2><div class="sh-2"><div class="sh-card"><small>Pontos de Vida</small><big>${c.pv} / ${c.pvMax}</big></div><div class="sh-card"><small>Pontos de Determinação</small><big>${c.pd} / ${c.pdMax}</big></div></div>
 <h2>Perícias</h2><div class="sh-sk">${per}</div>
 <h2>Combate</h2><div class="sh-kv"><b>Defesa</b><span>${DEF_BASE+(+c.prot||0)} <small>(7 natural + ${+c.prot||0} de proteção)</small></span><b>Proteção</b><span>${+c.prot||0}</span></div>
-<h2>Habilidades e poderes</h2><div class="sh-txt">${esc(c.habs)||'(Nenhuma)'}</div>
+<h2>Habilidades e poderes</h2>${habSheet(c)}
 <h2>Inventário — carga ${carga} / ${max} espaços</h2>${itens}
 <h2>Rituais</h2>${rit}
 <h2>Relações</h2>${c.rels.length?c.rels.map(r=>`<div class="sh-rel"><b>${esc(r.nome||'Sem nome')}</b><span class="sh-dots">${r.marcas.map(m=>m?'●':'○').join('')}</span>${relDie(r)?` <small>dado 1${relDie(r)}</small>`:''}<div class="sh-txt">${esc(r.desc)}</div></div>`).join(''):'<p>(Nenhuma relação)</p>'}
@@ -388,6 +393,47 @@ function setMk(k,i,max){char[k]=(char[k]==i+1)?i:i+1;save();refreshPerfil()}
 function addMk(k,n,max){char[k]=Math.min(max,char[k]+n);save();refreshPerfil()}
 function clearMk(k){char[k]=0;save();refreshPerfil()}
 
+
+/* ===== Habilidades por perfil (aba Combate) ===== */
+const HAB={
+Executor:[
+{id:'ex-impeto',n:'Ímpeto Fervilhante',d:'No início de cada cena, você preenche um espaço de sua barra de ímpeto.'},
+{id:'ex-plano',n:'Plano Estratégico',tag:'3 PD',d:'Você pode gastar uma ação e 3 PD para elaborar um plano de ação. Faça um teste de Aptidão (Guerra) contra DT 7. Se passar, você e os seus aliados recebem 1d6, +1d6 para cada 3 pontos pelos quais o resultado do teste exceder a DT, que podem gastar em qualquer teste até o fim da cena.'},
+{id:'ex-herb',n:'Arsenal de Herborista',d:'Você possui uma pequena bolsa contendo preparados medicinais feitos com ervas, óleos e mel. Para usar o item, escolha um alvo e gaste uma ação. Cada item é de uso único.',it:[
+['Tônico de urtiga-feroz','Uma mistura viscosa de sabor amargo, capaz de fortalecer quem a consome. O alvo recebe aumento de passo no atributo Físico por uma cena.'],
+['Bálsamo de confrei','Uma pasta grossa e mal-cheirosa feita para passar nos ferimentos. O alvo recupera 2d4△ PV (se for outro ser, ele precisa ficar parado nesta rodada).'],
+['Pote de vespa','Um pote quebradiço contendo vespas furiosas. Faça um teste de Sobrevivência para fazer um ataque à distância, com dano RA+1. Se o alvo sobreviver, perde sua próxima ação espantando as vespas.']]}],
+Vigilante:[
+{id:'vi-guardiao',n:'Guardião',tag:'2 PD',d:'Você se torna o alvo de um ataque feito contra um aliado próximo.'},
+{id:'vi-casca',n:'Casca Grossa',tag:'3 PD',d:'Quando sofre dano físico, você reduz esse dano em 5.'},
+{id:'vi-inquebravel',n:'Inquebrável',tag:'Passiva',d:'+1d8 em testes de lesão e trauma.'},
+{id:'vi-flechas',n:'Flechas Flamejantes',tag:'2 PD',d:'Você sabe incendiar suas flechas para que elas causem dano de fogo.'},
+{id:'vi-esquiva',n:'Esquiva',d:'Uma vez por rodada, quando sofre um ataque, pode fazer um teste de Acrobacia oposto ao teste de ataque como uma ação livre. Se vencer, evita o ataque.'},
+{id:'vi-antecipacao',n:'Antecipação Tática',d:'No início de qualquer combate, você pode gastar 2 PD. Se fizer isso, ganha uma rodada na qual pode agir antes dos demais personagens e NPCs.'},
+{id:'vi-sorrateiro',n:'Sorrateiro',d:'Quando faz um teste usando Crime ou Furtividade, você pode gastar 3 PD para receber +d8◇ no teste.'},
+{id:'vi-guardia',n:'Guardiã',d:'Você recebe +1 PV por patamar (já anotado na ficha) e, uma vez por rodada, quando um aliado em alcance curto sofre um ataque, pode gastar 2 PD para se tornar o alvo deste ataque.'}],
+Analista:[
+{id:'an-curandeiro',n:'Curandeiro',tag:'2 PD',d:'Você pode gastar uma ação e 2 PD para curar um aliado. Faça um teste de Medicina (DT 7). Se passar, você cura PV do aliado iguais à RA do teste. Você só pode usar este poder em um mesmo alvo uma vez por cena.'},
+{id:'an-leitura',n:'Leitura de Combate',tag:'Passiva',d:'Se gastar uma ação para se defender, recebe 1 marcador de análise.'},
+{id:'an-mentoria',n:'Mentoria',d:'Quando ajuda outro personagem, você pode fazer um teste da perícia que usou para ajudar contra DT 7. Se passar, o personagem ajudado pode substituir um dos dados rolados por ele pela sua rolagem alta.'}]};
+const HAB_GER=[
+{id:'ge-dedicado',n:'Dedicado',tag:'Passiva',d:'Aumenta Pontaria para d10.'},
+{id:'ge-heranca',n:'Herança',d:'Sua categoria de riqueza aumenta em 1*.',nota:'*As regras para compra de itens serão apresentadas futuramente. Na prática, por hora isso significa que começa com itens melhores.'},
+{id:'ge-instinto',n:'Instinto de Sobrevivência',d:'Se você estiver com metade ou menos de seus PV máximos, recebe um aumento de passo em todos os testes.'},
+{id:'ge-espectro',n:'Espectro, o Lobo',d:'Uma vez por rodada, quando sofre um ataque, pode fazer um teste de Acrobacia oposto ao teste de ataque como uma ação livre. Se vencer, evita o ataque.'},
+{id:'ge-aco',n:'Segredo do Aço',d:'Você sabe usar equipamentos marciais. Além disso, se estiver vestindo um item que forneça pontos de armadura, o item fornece 1 ponto de armadura adicional.'}];
+const habsPerfil=c=>HAB[c.perfil]||[];
+const habsDe=c=>habsPerfil(c).concat(HAB_GER);
+function habCard(h,c){
+  const own=!!c.habOwn[h.id];
+  return `<div class="hab${own?' own':''}"><div class="hab-h"><label class="hab-ck" title="Marcar como habilidade do personagem"><input type="checkbox" data-hown="${h.id}"${own?' checked':''} aria-label="Possuo ${esc(h.n)}"></label><h4>${esc(h.n)}</h4>${h.tag?`<span class="tag">${esc(h.tag)}</span>`:''}</div><p>${esc(h.d)}</p>${h.it?`<ul>${h.it.map(i=>`<li><b>${esc(i[0])}.</b> ${esc(i[1])}</li>`).join('')}</ul>`:''}${h.nota?`<p class="mute">${esc(h.nota)}</p>`:''}</div>`}
+function habCount(){const e=$('habN');if(e)e.textContent=habsDe(char).filter(h=>char.habOwn[h.id]).length}
+function habSheet(c){
+  const own=habsDe(c).filter(h=>c.habOwn[h.id]);
+  const blocos=own.map(h=>`<div class="sh-rit"><b>${esc(h.n)}</b>${h.tag?` <small>${esc(h.tag)}</small>`:''}<div class="sh-txt">${esc(h.d)}${h.it?'\n'+h.it.map(i=>'⬢ '+esc(i[0])+'. '+esc(i[1])).join('\n'):''}${h.nota?'\n'+esc(h.nota):''}</div></div>`).join('');
+  const outras=c.habs?`<h2 style="font-size:14px">Outras habilidades e anotações</h2><div class="sh-txt">${esc(c.habs)}</div>`:'';
+  return (blocos||outras?blocos+outras:'<p>(Nenhuma)</p>')}
+
 function render(){hpPrev={};head();const c=char,fp=c.fotoPos||{z:100,x:50,y:50};let h='';
 if(tab=='ficha'){
 h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
@@ -440,7 +486,9 @@ if(tab=='combate'){
 h=`<div class="box"><h2>Defesa e proteção</h2><div class="grid g2">
 <label>Defesa total<div style="font:28px 'Special Elite'" id="defTot">${DEF_BASE+c.prot}</div><span class="mute" id="defBrk">${DEF_BASE} natural + ${c.prot} de proteção</span></label>
 <label>Proteção (armadura)<input type="number" min="0" data-p="prot" data-num="1" value="${c.prot}"></label></div></div>
-<div class="box"><h2>Habilidades e poderes</h2><textarea data-p="habs" placeholder="Habilidades, poderes e características">${esc(c.habs)}</textarea></div>`}
+<div class="box"><h2>Habilidades de ${esc(c.perfil)}</h2><p class="mute">Ligadas ao perfil escolhido na aba Ficha. Marque a caixa das que o personagem possui. <b>Marcadas: <span id="habN"></span></b></p>${habsPerfil(c).map(h=>habCard(h,c)).join('')}</div>
+<div class="box"><h2>Habilidades gerais</h2>${HAB_GER.map(h=>habCard(h,c)).join('')}</div>
+<div class="box"><h2>Outras habilidades e anotações</h2><textarea data-p="habs" placeholder="Poderes extras, características, observações">${esc(c.habs)}</textarea></div>`}
 if(tab=='inv'){
 const optI=l=>l.map(x=>`<option value="${esc(x[0])}">${esc(x[0])} · ${x[2]} esp.</option>`).join('');
 const itemSel=(a,i)=>{const inf=itemInfo(a.nome),cu=a.custom||(a.nome&&!inf),v=cu?'__custom':(inf?a.nome:'');
@@ -449,7 +497,7 @@ h=`<div class="box"><h2>Inventário</h2><p>Carga: <b data-out="carga"></b> / <b 
 if(tab=='rituais'){
 h=`<div class="box"><h2>Rituais</h2>${c.rituais.map((a,i)=>`<div class="box"><div class="row"><label>Nome<input data-l="rituais" data-i="${i}" data-k="nome" value="${esc(a.nome)}"></label><label>Elemento${elSel(a,i)}</label><label>Círculo${sel([1,2,3,4],a.circ||1,`data-l="rituais" data-i="${i}" data-k="circ"`)}</label><label>Custo (PD)<input type="number" min="0" data-l="rituais" data-i="${i}" data-k="custo" data-num="1" value="${a.custo||0}"></label><span><button onclick="gastar(${a.custo||0})">Conjurar</button> <button onclick="rm('rituais',${i})">×</button></span></div><textarea data-l="rituais" data-i="${i}" data-k="desc" placeholder="Execução, alcance, alvo, duração, efeito">${esc(a.desc)}</textarea></div>`).join('')||'<p class="mute">Nenhum ritual conhecido.</p>'}<button onclick="add('rituais',{nome:'',elem:'Sangue',circ:1,custo:1,desc:''})">Adicionar ritual</button></div>`}
 if(tab=='notas'){h=`<div class="box"><h2>Relações</h2><p class="mute">Marque os círculos da relação, informe o nome da pessoa e descreva o que você sente por ela. Cada círculo marcado libera um dado: <b>1 círculo = 1d8</b> · <b>2 círculos = 1d10</b> · <b>3 círculos = 1d12</b>.</p>${c.rels.map((r,i)=>`<div class="rel"><div class="rel-top"><label>Nome da pessoa<input data-l="rels" data-i="${i}" data-k="nome" value="${esc(r.nome)}"></label><div class="circ" role="group" aria-label="Marcas da relação">${[0,1,2].map(j=>`<label class="cb"><input type="checkbox" data-rel="${i}" data-j="${j}"${r.marcas[j]?' checked':''} aria-label="Marca ${j+1}"><i></i></label>`).join('')}</div><button type="button" class="rdie" id="rd_${i}" onclick="rolarRel(${i})"${relDie(r)?'':' disabled'}>${relBtn(r)}</button><button onclick="rm('rels',${i})" aria-label="Remover relação">×</button></div><textarea data-l="rels" data-i="${i}" data-k="desc" placeholder="O que você sente por essa pessoa">${esc(r.desc)}</textarea></div>`).join('')||'<p class="mute">Nenhuma relação criada.</p>'}<button onclick="add('rels',{nome:'',desc:'',marcas:[false,false,false]})">Adicionar relação</button></div><div class="box"><h2>Anotações</h2><textarea style="min-height:200px" data-p="notas">${esc(c.notas)}</textarea></div>`}
-$('view').innerHTML=h;applyFotoPos();bindPortraitDrag();updA();calc();sync()}
+$('view').innerHTML=h;applyFotoPos();bindPortraitDrag();updA();calc();sync();habCount()}
 
 /* Arrastar o retrato diretamente no quadro */
 function bindPortraitDrag(){
@@ -497,7 +545,8 @@ function gastar(n){const c=char;if(c.pd<n){say('PD insuficiente para conjurar ('
 function add(l,o){char[l].push(o);save();render()}
 function rm(l,i){char[l].splice(i,1);save();render()}
 const d=n=>1+Math.floor(Math.random()*n);
-function say(t){$('log').textContent=t}
+let logT;
+function say(t){const e=$('log');e.textContent=t;e.classList.add('show');clearTimeout(logT);logT=setTimeout(()=>e.classList.remove('show'),Math.max(3500,Math.min(9000,String(t).length*70)))}
 function rolar(n){const c=char,die=dieOf(c,n),nm=n=='Aptidão'?`Aptidão (${aptNome(c)})`:n;
 const f=+die.slice(1),r=d(f);say(`${nm}: ${die} → ${r}${r==f?' (máximo!)':r==1?' (1)':''}`)}
 function updRel(i){const r=char.rels[i],b=$('rd_'+i);if(!b)return;b.textContent=relBtn(r);b.disabled=!relDie(r)}
@@ -555,29 +604,56 @@ if(t.dataset.p){const ks=t.dataset.p.split('.');let o=c;for(let i=0;i<ks.length-
 else if(t.dataset.l){c[t.dataset.l][t.dataset.i][t.dataset.k]=t.dataset.num?(+t.value||0):t.value}
 else return;save();calc()});
 document.addEventListener('change',e=>{const t=e.target,c=char;
+if(t.dataset.hown!==undefined){if(t.checked)c.habOwn[t.dataset.hown]=true;else delete c.habOwn[t.dataset.hown];save();t.closest('.hab').classList.toggle('own',t.checked);habCount();return}
 if(t.dataset.isel!==undefined){pickItem(+t.dataset.isel,t.value);return}
 if(t.dataset.rel!==undefined){c.rels[+t.dataset.rel].marcas[+t.dataset.j]=t.checked;save();updRel(+t.dataset.rel);return}
 if(t.dataset.sk){c.dado[t.dataset.sk]=t.value;save();return}
 if(t.tagName=='SELECT'&&(t.dataset.p||t.dataset.l)){save();render()}});
 const ELC={Sangue:'sangue',Morte:'morte',Conhecimento:'conhecimento',Energia:'energia',Medo:'medo'};
-const SPIRAL='<svg class="sp" viewBox="32 32 36 36" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M50 50A1.5 1.5 0 0 1 53 50A3 3 0 0 1 47 50A4.5 4.5 0 0 1 56 50A6 6 0 0 1 44 50A7.5 7.5 0 0 1 59 50A9 9 0 0 1 41 50A10.5 10.5 0 0 1 62 50A12 12 0 0 1 38 50"/></svg>';
+const NSV='http://www.w3.org/2000/svg';
+/* Morte: espiral de fumaça/neblina (duas camadas), sem círculo branco */
+function spiralPath(cx,cy,r0,r1,turns,off){
+  const pts=[],N=Math.round(turns*28);
+  for(let i=0;i<=N;i++){const t=i/N,a=off+t*turns*2*Math.PI,r=r0+(r1-r0)*t;pts.push([cx+r*Math.cos(a),cy+r*Math.sin(a)])}
+  return 'M'+pts.map(p=>p[0].toFixed(1)+' '+p[1].toFixed(1)).join('L');
+}
+function smokeSvg(){
+  const arms=(n,r0,r1,turns,sw,op,col,flt)=>Array.from({length:n},(_,k)=>`<path d="${spiralPath(100,100,r0,r1,turns,k*2*Math.PI/n)}" stroke="${col}" stroke-width="${sw}" stroke-linecap="round" opacity="${op}" filter="url(#${flt})"/>`).join('');
+  return `<svg class="sp sp1" viewBox="0 0 200 200" fill="none" aria-hidden="true">${arms(3,4,96,2.4,11,.26,'#8d8e9d','smk2')}</svg>`+
+         `<svg class="sp sp2" viewBox="0 0 200 200" fill="none" aria-hidden="true">${arms(3,3,92,2.8,4.5,.5,'#c9cad6','smk')}${arms(2,6,80,2.2,2,.35,'#ffffff','smk')}</svg>`;
+}
 function elSel(a,i){
   const e=a.elem||'Sangue';
-  const fx=e=='Sangue'?'<i class="dr"></i><i class="dr"></i><i class="dr"></i><i class="dr"></i>':e=='Morte'?SPIRAL:'';
+  const fx=e=='Sangue'?'<i class="dr"></i><i class="dr"></i><i class="dr"></i><i class="dr"></i>':e=='Morte'?smokeSvg():'';
   return `<span class="elw el-${ELC[e]||'sangue'}">${sel(ELEM,e,`data-l="rituais" data-i="${i}" data-k="elem" aria-label="Elemento"`)}${fx}</span>`;
 }
+/* Energia: raios finos e irregulares, sempre contidos no select */
+function bolt(x1,y1,x2,y2,d,pts){
+  if(d==0){pts.push([x2,y2]);return}
+  const mx=(x1+x2)/2,my=(y1+y2)/2,dx=x2-x1,dy=y2-y1,L=Math.hypot(dx,dy)||1,j=(Math.random()-.5)*L*.55;
+  bolt(x1,y1,mx-dy/L*j,my+dx/L*j,d-1,pts);bolt(mx-dy/L*j,my+dx/L*j,x2,y2,d-1,pts);
+}
+function boltPath(x1,y1,x2,y2,d){const pts=[[x1,y1]];bolt(x1,y1,x2,y2,d,pts);return pts}
+const ptsStr=p=>p.map(q=>q[0].toFixed(1)+','+q[1].toFixed(1)).join(' ');
+function zap(w){
+  const W=w.clientWidth,H=w.clientHeight;if(!W||!H)return;
+  const hue=190+Math.floor(Math.random()*95),glow=`hsl(${hue} 100% 66%)`,svg=document.createElementNS(NSV,'svg');
+  svg.setAttribute('class','bolt');svg.setAttribute('viewBox',`0 0 ${W} ${H}`);svg.setAttribute('width',W);svg.setAttribute('height',H);
+  const horiz=Math.random()<.4;
+  const a=horiz?[Math.random()*W*.25,Math.random()*H]:[Math.random()*W,0],b=horiz?[W*(.75+Math.random()*.25),Math.random()*H]:[Math.max(0,Math.min(W,a[0]+(Math.random()-.5)*W*.4)),H];
+  const main=boltPath(a[0],a[1],b[0],b[1],horiz?6:4),paths=[main];
+  const nb=1+Math.floor(Math.random()*2);
+  for(let k=0;k<nb;k++){const o=main[1+Math.floor(Math.random()*(main.length-2))];paths.push(boltPath(o[0],o[1],o[0]+(Math.random()-.5)*W*.35,Math.min(H,o[1]+H*(.3+Math.random()*.5)),3))}
+  const line=(p,w1,col,op)=>{const e=document.createElementNS(NSV,'polyline');e.setAttribute('points',ptsStr(p));e.setAttribute('fill','none');e.setAttribute('stroke',col);e.setAttribute('stroke-width',w1);e.setAttribute('stroke-linejoin','round');e.setAttribute('stroke-linecap','round');e.setAttribute('opacity',op);svg.appendChild(e)};
+  paths.forEach((p,i)=>line(p,i?1.6:2.4,glow,.35));
+  paths.forEach((p,i)=>line(p,i?.5:.8,'#fff',i?.8:1));
+  svg.style.filter=`drop-shadow(0 0 2px ${glow})`;
+  w.appendChild(svg);setTimeout(()=>svg.remove(),650);
+}
 setInterval(()=>{
-  if(calmo())return;
-  document.querySelectorAll('.el-energia').forEach(w=>{
-    for(let k=0;k<3;k++){
-      const c=`hsl(${Math.floor(Math.random()*360)} 100% 62%)`,b=document.createElement('span');
-      b.className='bolt';
-      b.style.cssText=`left:${5+Math.random()*85}%;top:${-10+Math.random()*50}%;transform:rotate(${Math.round(Math.random()*50-25)}deg);filter:drop-shadow(0 0 3px ${c})`;
-      b.innerHTML=`<svg viewBox="0 0 12 22" width="12" height="22"><path d="M7 0L1 11h4L3 22l8-13H7z" fill="${c}"/></svg>`;
-      w.appendChild(b);setTimeout(()=>b.remove(),850);
-    }
-  });
-},3000);
+  if(calmo()||document.hidden)return;
+  document.querySelectorAll('.el-energia').forEach(w=>{zap(w);if(Math.random()<.5)setTimeout(()=>zap(w),120+Math.random()*200)});
+},1400);
 try{setPavor(localStorage.getItem('op_pavor')=='1')}catch(e){}
 load().then(render);
 </script>
