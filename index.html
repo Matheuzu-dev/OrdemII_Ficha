@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cidadãos de Bálcãs</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Special+Elite&family=IBM+Plex+Sans:wght@400;500;600&family=Grenze+Gotisch:wght@500;700&family=Cinzel:wght@600;700&display=swap">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -14,7 +14,7 @@
 <filter id="smk2" x="-30%" y="-30%" width="160%" height="160%"><feTurbulence type="fractalNoise" baseFrequency=".02" numOctaves="2" seed="11" result="n"/><feDisplacementMap in="SourceGraphic" in2="n" scale="26" xChannelSelector="G" yChannelSelector="R" result="d"/><feGaussianBlur in="d" stdDeviation="4"/></filter>
 </defs></svg>
 <header>
-  <h1>Cidadãos de Bálcãs</h1>
+  <h1 id="brand" class="brand"><span class="sr">A Vigília</span></h1>
   <div class="bar">
     <button onclick="io()">Exportar / importar</button>
     <button onclick="imprimir()">Imprimir</button>
@@ -27,11 +27,12 @@
 <div id="log" role="status" aria-live="polite"></div>
 <dialog id="dlg">
   <h2>Exportar / importar ficha</h2>
-  <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, relações e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo.</p>
+  <p class="mute"><b>Exportar</b> baixa a ficha completa (retrato na qualidade original, atributos, perícias, combate, inventário, rituais, relações e anotações) em um arquivo que abre direto no navegador. <b>Importar</b> carrega um arquivo exportado por aqui e restaura tudo. <b>Exportar cartão</b> gera uma imagem PNG em 16:9 com atributos, perícias e habilidades, pronta para compartilhar.</p>
   <p id="ierr" class="mute" role="alert"></p>
   <input type="file" id="f_imp" accept=".html,.htm,.json,.txt,text/html,text/plain,application/json" style="display:none" onchange="importar(this.files[0]);this.value=''">
   <div class="bar" style="margin-top:8px">
     <button class="pri" onclick="exportar()">Exportar ficha</button>
+    <button onclick="exportarCartao()">Exportar cartão (PNG)</button>
     <button onclick="$('f_imp').click()">Importar ficha</button>
     <button onclick="dlg.close()">Fechar</button>
   </div>
@@ -79,7 +80,7 @@ const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['i
 let char=null,tab='ficha',pavor=false;
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
-function blank(){return{nome:'Novo cidadão',aptidao:'',perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',habOwn:{},rels:[],impeto:0,analise:0}}
+function blank(){return{nome:'Novo cidadão',aptidao:'',nivel:1,perfil:'Executor',foto:'',fotoPos:{z:100,x:50,y:50,s:320},attrs:{FIS:'d4',MEN:'d4',EMO:'d4'},pv:10,pvMax:10,pd:5,pdMax:5,prot:0,dado:{},apsub:'Artes',apnome:'',apdesc:'',itens:[],rituais:[],habs:'',notas:'',hist:'',habOwn:{},rels:[],impeto:0,analise:0}}
 
 /* Armazenamento: ficha no localStorage; imagem original (sem recompressão) no IndexedDB */
 const LS='op_single_char',IDB_NAME='op_single_db',IDB_STORE='kv';
@@ -110,7 +111,7 @@ function fix(c){
   const o=c.attrs||{};
   c.attrs={FIS:toDie(o.FIS??o.FOR),MEN:toDie(o.MEN??o.INT),EMO:toDie(o.EMO??o.PRE)};
   c.fotoPos=Object.assign({z:100,x:50,y:50},c.fotoPos||{},{s:320});
-  c.prot=parseInt(c.prot)||0;
+  c.prot=parseInt(c.prot)||0;c.nivel=Math.max(1,Math.min(99,parseInt(c.nivel)||1));
   c.habOwn=(c.habOwn&&typeof c.habOwn=='object'&&!Array.isArray(c.habOwn))?c.habOwn:{};
   if(!APT.includes(c.apsub))c.apsub='Artes';
   c.impeto=Math.max(0,Math.min(5,parseInt(c.impeto)||0));c.analise=Math.max(0,Math.min(4,parseInt(c.analise)||0));
@@ -260,7 +261,7 @@ function sheetBody(c,n){
   const itens=c.itens.length?`<table class="sh-tb"><tr><th>Item</th><th>Descrição</th><th>Espaços</th><th>Qtd.</th></tr>${c.itens.map(i=>{const f=itemInfo(i.nome);return `<tr><td>${esc(i.nome||'Item sem nome')}</td><td>${f?esc(f[1]):''}</td><td>${+i.esp||0}</td><td>${+i.qtd||1}</td></tr>`}).join('')}</table>`:'<p>(Nenhum item)</p>';
   const rit=c.rituais.length?c.rituais.map(r=>`<div class="sh-rit"><b>${esc(r.nome||'Ritual sem nome')}</b> <small>${esc(r.elem||'Sangue')} · ${r.circ||1}º círculo · ${r.custo||0} PD</small><div class="sh-txt">${esc(r.desc||'')}</div></div>`).join(''):'<p>(Nenhum ritual)</p>';
   return `<h1>Cidadãos de Bálcãs</h1>
-<div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span>${c.perfil=='Executor'?`<b>Ímpeto</b><span>${c.impeto} / 5</span>`:c.perfil=='Analista'?`<b>Análise</b><span>${c.analise} / 4</span>`:''}</div></div>
+<div class="sh-id">${c.foto?fotoStatic(c,n):''}<div class="sh-kv"><b>Nome</b><span>${esc(c.nome)}</span><b>Aptidão</b><span>${esc(c.aptidao)}</span><b>Perfil</b><span>${esc(c.perfil)}</span><b>Nível</b><span>${c.nivel||1}</span>${c.perfil=='Executor'?`<b>Ímpeto</b><span>${c.impeto} / 5</span>`:c.perfil=='Analista'?`<b>Análise</b><span>${c.analise} / 4</span>`:''}</div></div>
 <h2>Atributos</h2><div class="sh-3">${A.map(k=>`<div class="sh-card"><small>${AN[k]}</small><big>${c.attrs[k]}</big></div>`).join('')}</div>
 <h2>Pontos</h2><div class="sh-2"><div class="sh-card"><small>Pontos de Vida</small><big>${c.pv} / ${c.pvMax}</big></div><div class="sh-card"><small>Pontos de Determinação</small><big>${c.pd} / ${c.pdMax}</big></div></div>
 <h2>Perícias</h2><div class="sh-sk">${per}</div>
@@ -439,7 +440,8 @@ if(tab=='ficha'){
 h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <label>Nome<input data-p="nome" value="${esc(c.nome)}"></label>
 <label>Aptidão<input data-p="aptidao" value="${esc(c.aptidao)}" placeholder="Ex.: Artes, Guerra"></label>
-<label>Perfil${sel(PERF,c.perfil,'data-p="perfil"')}</label></div>${perfilBox(c)}</div>
+<label>Perfil${sel(PERF,c.perfil,'data-p="perfil"')}</label>
+<label>Nível<input type="number" min="1" max="99" data-p="nivel" data-num="1" value="${c.nivel||1}"></label></div>${perfilBox(c)}</div>
 
 <div class="box"><h2>Retrato / Ícone</h2>
 <div class="portrait-wrap">
@@ -654,8 +656,279 @@ setInterval(()=>{
   if(calmo()||document.hidden)return;
   document.querySelectorAll('.el-energia').forEach(w=>{zap(w);if(Math.random()<.5)setTimeout(()=>zap(w),120+Math.random()*200)});
 },1400);
+/* ===== Cartão de personagem (PNG) + título "A Vigília" com efeito de derretimento ===== */
+const FONT_TIT='"Grenze Gotisch","Pirata One","UnifrakturCook",Georgia,serif';
+const FONT_RUN='"Cinzel","Trajan Pro",Georgia,serif';
+const FONT_TXT='"IBM Plex Sans",system-ui,sans-serif';
+
+/* ruído de valor 1D/2D determinístico (mesma semente = mesmo desenho) */
+function rng(seed){let s=seed>>>0||1;return()=>((s=Math.imul(s^s>>>15,0x2c1b3c6d),s=Math.imul(s^s>>>12,0x297a2d39),(s^=s>>>15)>>>0)/4294967296)}
+function hash2(x,y,sd){let h=Math.imul(x|0,374761393)+Math.imul(y|0,668265263)+Math.imul(sd|0,1442695041);h=Math.imul(h^h>>>13,1274126177);return((h^h>>>16)>>>0)/4294967296}
+function vnoise(x,y,sd){
+  const xi=Math.floor(x),yi=Math.floor(y),xf=x-xi,yf=y-yi,u=xf*xf*(3-2*xf),v=yf*yf*(3-2*yf);
+  const a=hash2(xi,yi,sd),b=hash2(xi+1,yi,sd),c=hash2(xi,yi+1,sd),d=hash2(xi+1,yi+1,sd);
+  return a+(b-a)*u+(c-a)*v+(a-b-c+d)*u*v;
+}
+function mk(w,h){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(w));c.height=Math.max(1,Math.round(h));return c}
+
+async function carregarFontes(){
+  try{
+    await Promise.all([
+      document.fonts.load('700 64px "Grenze Gotisch"','Aáç'),
+      document.fonts.load('600 24px "Cinzel"','Aáç'),
+      document.fonts.load('400 22px "IBM Plex Sans"','Aáç')
+    ]);
+    await document.fonts.ready;
+  }catch(e){}
+}
+
+/* Texto "tinta fria": bordas irregulares + derretimento que escorre só das bordas de baixo.
+   opts: size(px), color, tail, glow, melt(0..1), seed, pad, maxW(px opcional, reduz a fonte p/ caber), align */
+function textoDerretendo(txt,o){
+  o=Object.assign({size:96,color:'#eef6f5',tail:'rgba(190,225,230,.78)',glow:'rgba(150,215,225,.55)',melt:1,seed:7,weight:700,font:FONT_TIT,maxW:0},o||{});
+  let size=o.size;
+  const probe=mk(8,8).getContext('2d');
+  const medir=s=>{probe.font=`${o.weight} ${s}px ${o.font}`;return probe.measureText(txt).width};
+  if(o.maxW){let w=medir(size);if(w>o.maxW)size=Math.max(14,size*o.maxW/w)}
+  const w0=medir(size),dripMax=size*.62*o.melt,pad=Math.ceil(size*.35);
+  const W=Math.ceil(w0+pad*2),H=Math.ceil(size*1.25+dripMax+pad*2);
+  /* 1) máscara do texto, levemente irregular nas bordas */
+  const base=mk(W,H),bx=base.getContext('2d');
+  bx.font=`${o.weight} ${size}px ${o.font}`;bx.textBaseline='alphabetic';bx.fillStyle='#fff';
+  const baseY=pad+size*.95;
+  bx.fillText(txt,pad,baseY);
+  const src=bx.getImageData(0,0,W,H),sa=src.data;
+  const dst=bx.createImageData(W,H),da=dst.data;
+  const amp=size*.035,fq=1/(size*.09);
+  /* 2) bordas rugosas: desloca amostragem com ruído, sem borrar a leitura */
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){
+    const dx=(vnoise(x*fq,y*fq,o.seed)-.5)*2*amp,dy=(vnoise(x*fq+31,y*fq+17,o.seed+5)-.5)*2*amp;
+    const sx=Math.min(W-1,Math.max(0,Math.round(x+dx))),sy=Math.min(H-1,Math.max(0,Math.round(y+dy)));
+    da[(y*W+x)*4+3]=sa[(sy*W+sx)*4+3];
+  }
+  /* 3) derretimento: gotas finas e grossas escorrendo para baixo, afinando e sumindo */
+  const out=new Uint8ClampedArray(da.length);
+  for(let x=0;x<W;x++){
+    const n1=vnoise(x/(size*.11),3.3,o.seed+9),n2=vnoise(x/(size*.035),8.8,o.seed+3);
+    /* poucas colunas escorrem muito; as demais, pouco */
+    let L=Math.pow(Math.max(0,n1-.34)/.66,1.6)*(.55+.45*n2);
+    L=L*dripMax;
+    for(let y=0;y<H;y++){
+      let best=da[(y*W+x)*4+3];
+      if(best<255&&L>1){
+        const kmax=Math.min(y,Math.ceil(L));
+        for(let k=1;k<=kmax;k++){
+          const a=da[((y-k)*W+x)*4+3];
+          if(a){const f=1-k/L;const v=a*f*f;if(v>best)best=v;if(best>=250)break}
+        }
+      }
+      out[(y*W+x)*4+3]=best;
+    }
+  }
+  /* 4) composição: halo frio + corpo claro + leve gradiente de baixo para cima */
+  const mask=mk(W,H);mask.getContext('2d').putImageData(new ImageData(out,W,H),0,0);
+  const res=mk(W,H),r=res.getContext('2d');
+  r.save();r.filter=`blur(${size*.08}px)`;r.globalAlpha=.9;r.drawImage(mask,0,0);r.restore();
+  r.globalCompositeOperation='source-in';r.fillStyle=o.glow;r.fillRect(0,0,W,H);
+  r.globalCompositeOperation='source-over';
+  const body=mk(W,H),b=body.getContext('2d');
+  b.drawImage(mask,0,0);b.globalCompositeOperation='source-in';
+  const g=b.createLinearGradient(0,pad,0,pad+size*1.2+dripMax);
+  g.addColorStop(0,o.color);g.addColorStop(.55,o.color);g.addColorStop(1,o.tail);
+  b.fillStyle=g;b.fillRect(0,0,W,H);
+  r.drawImage(body,0,0);
+  return{canvas:res,w:W,h:H,size,baseY,pad};
+}
+
+/* ===== utilidades de desenho ===== */
+function dieShape(ctx,x,y,s,die){
+  const sh=SH[die]||SH.d8,sc=s/100;
+  ctx.beginPath();
+  sh.o.forEach((p,i)=>{const px=x+(p[0]-50)*sc+s/2,py=y+(p[1]-50)*sc+s/2;i?ctx.lineTo(px,py):ctx.moveTo(px,py)});
+  ctx.closePath();
+}
+function dieBadge(ctx,cx,cy,s,die,dark){
+  ctx.save();
+  dieShape(ctx,cx-s/2,cy-s/2,s,die);
+  ctx.fillStyle=dark?'#14181a':'#f2f4f2';ctx.shadowColor='rgba(0,0,0,.55)';ctx.shadowBlur=s*.25;ctx.fill();
+  ctx.shadowBlur=0;ctx.lineWidth=Math.max(1,s*.06);ctx.strokeStyle=dark?'#f2f4f2':'#14181a';ctx.stroke();
+  ctx.fillStyle=dark?'#f2f4f2':'#14181a';ctx.font=`700 ${s*.5}px ${FONT_TXT}`;ctx.textAlign='center';ctx.textBaseline='middle';
+  const ty=die=='d4'?cy+s*.14:die=='d6'?cy+s*.02:cy+s*.03;
+  ctx.fillText(die.slice(1),cx,ty);
+  ctx.restore();
+}
+function quebra(ctx,txt,maxW){
+  const ws=String(txt).split(/\s+/),lines=[];let cur='';
+  ws.forEach(w=>{const t=cur?cur+' '+w:w;if(ctx.measureText(t).width>maxW&&cur){lines.push(cur);cur=w}else cur=t});
+  if(cur)lines.push(cur);return lines;
+}
+/* faixa de tinta (pincelada irregular) */
+function faixa(ctx,x,y,w,h,seed,fill){
+  const r=rng(seed),n=Math.max(12,Math.round(w/14));
+  ctx.beginPath();
+  const top=[],bot=[];
+  for(let i=0;i<=n;i++){const t=i/n;top.push([x+w*t,y+(r()-.5)*h*.16]);bot.push([x+w*t,y+h+(r()-.5)*h*.16])}
+  /* pontas rasgadas */
+  ctx.moveTo(x-h*.12,y+h*.2);
+  top.forEach(p=>ctx.lineTo(p[0],p[1]));
+  ctx.lineTo(x+w+h*.1,y+h*.25);ctx.lineTo(x+w+h*.16,y+h*.7);
+  for(let i=n;i>=0;i--)ctx.lineTo(bot[i][0],bot[i][1]);
+  ctx.lineTo(x-h*.16,y+h*.8);ctx.closePath();ctx.fillStyle=fill;ctx.fill();
+}
+
+/* ===== fundo: ruído cinzento + vinheta, procedural ===== */
+function desenharFundo(ctx,W,H,seed){
+  const g=ctx.createLinearGradient(0,0,W,H);g.addColorStop(0,'#2b2f30');g.addColorStop(.5,'#1e2223');g.addColorStop(1,'#141718');
+  ctx.fillStyle=g;ctx.fillRect(0,0,W,H);
+  const sw=Math.ceil(W/4),sh=Math.ceil(H/4),c=mk(sw,sh),cx=c.getContext('2d'),im=cx.createImageData(sw,sh),d=im.data;
+  for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){
+    const n=vnoise(x/38,y/30,seed)*.55+vnoise(x/14,y/11,seed+2)*.3+vnoise(x/5,y/4,seed+4)*.15;
+    const v=Math.max(0,n-.42)*2.4;
+    const i=(y*sw+x)*4;d[i]=d[i+1]=d[i+2]=200;d[i+3]=Math.min(255,v*95);
+  }
+  cx.putImageData(im,0,0);
+  ctx.save();ctx.imageSmoothingEnabled=true;ctx.imageSmoothingQuality='high';ctx.globalAlpha=.55;ctx.drawImage(c,0,0,W,H);ctx.restore();
+  const v=ctx.createRadialGradient(W*.42,H*.5,H*.2,W*.5,H*.5,W*.75);
+  v.addColorStop(0,'rgba(0,0,0,0)');v.addColorStop(1,'rgba(0,0,0,.6)');ctx.fillStyle=v;ctx.fillRect(0,0,W,H);
+}
+
+/* Resumo curto da habilidade-base de cada perfil (aparece primeiro no cartão) */
+const PERFIL_BASE={
+  Vigilante:{n:'Prontidão',tag:'2 PD',d:'Uma vez por rodada, você ou um aliado próximo rola novamente um dado com valor 2 ou mais.'},
+  Executor:{n:'Ímpeto',tag:'Barra',d:'Cada falha em um teste preenche um espaço da barra de ímpeto (5). Gaste espaços como ação livre para receber benefícios.'},
+  Analista:{n:'Análise',tag:'Ação',d:'Gaste uma ação para receber 2 marcadores de análise (máx. 4). Cada marcador muda o resultado de um dado em +1 ou −1.'}
+};
+function habsCartao(c){
+  const l=[];const b=PERFIL_BASE[c.perfil];if(b)l.push(b);
+  habsDe(c).filter(h=>c.habOwn[h.id]).forEach(h=>l.push({n:h.n,tag:h.tag||'',d:h.d}));
+  return l;
+}
+const tagTxt=t=>String(t||'').replace(/\s*PD/,' PD');
+
+/* ===== Cartão completo. Retorna um canvas 1920×1080 ===== */
+async function desenharCartao(c,imgEl,W=1920){
+  await carregarFontes();
+  const H=Math.round(W*9/16),k=W/1000,cv=mk(W,H),ctx=cv.getContext('2d');
+  desenharFundo(ctx,W,H,13);
+
+  /* retrato à direita, esmaecendo para a esquerda */
+  if(imgEl){
+    const pw=W*.46,ph=H,por=mk(pw,ph),px=por.getContext('2d');
+    const n={w:imgEl.naturalWidth||1,h:imgEl.naturalHeight||1};
+    const base=Math.max(pw/n.w,ph/n.h),z=(c.fotoPos&&c.fotoPos.z||100)/100,dw=n.w*base*z,dh=n.h*base*z;
+    const fx=(c.fotoPos?c.fotoPos.x:50)/100,fy=(c.fotoPos?c.fotoPos.y:30)/100;
+    px.drawImage(imgEl,-(dw-pw)*fx,-(dh-ph)*fy,dw,dh);
+    px.globalCompositeOperation='destination-in';
+    const m=px.createLinearGradient(0,0,pw,0);m.addColorStop(0,'rgba(0,0,0,0)');m.addColorStop(.38,'rgba(0,0,0,.92)');m.addColorStop(1,'#000');
+    px.fillStyle=m;px.fillRect(0,0,pw,ph);
+    ctx.drawImage(por,W-pw,0);
+  }
+  /* escurece a coluna esquerda para o texto ler bem */
+  const sh=ctx.createLinearGradient(0,0,W*.62,0);sh.addColorStop(0,'rgba(8,10,10,.55)');sh.addColorStop(1,'rgba(8,10,10,0)');
+  ctx.fillStyle=sh;ctx.fillRect(0,0,W*.62,H);
+
+  /* nome (mesmo tratamento do título) */
+  const nome=(c.nome||'Sem nome').trim();
+  const t=textoDerretendo(nome,{size:118*k,maxW:370*k,seed:21,melt:.7});
+  ctx.drawImage(t.canvas,44*k-t.pad,150*k-t.baseY);
+
+  /* nível · perfil · aptidão */
+  ctx.save();ctx.font=`600 ${19*k}px ${FONT_RUN}`;ctx.textBaseline='alphabetic';ctx.fillStyle='#d9e2e1';
+  const sub=[`NÍVEL ${c.nivel||1}`,String(c.perfil||'').toUpperCase()];
+  if(c.aptidao&&c.aptidao.trim())sub.push(c.aptidao.trim().toUpperCase());
+  let sx=62*k;const sy=206*k;
+  sub.forEach((s,i)=>{
+    const w=ctx.measureText(s).width;
+    if(i==1){ctx.fillStyle='#f4f6f4';const pad=10*k;ctx.fillRect(sx-pad,sy-19*k,w+pad*2,27*k);ctx.fillStyle='#161a1b';ctx.fillText(s,sx,sy);sx+=w+pad*2+30*k;ctx.fillStyle='#d9e2e1'}
+    else{ctx.fillText(s,sx,sy);sx+=w+36*k}
+  });ctx.restore();
+
+  /* atributos: nome + dado, alinhados à direita da coluna central */
+  const ax=578*k;let ay=84*k;
+  A.forEach(a=>{
+    const tt=textoDerretendo(AN[a],{size:48*k,seed:40+a.length,melt:.45});
+    ctx.drawImage(tt.canvas,ax-tt.pad,ay-tt.baseY+tt.size*.0);
+    ctx.save();
+    const w=tt.w-tt.pad*2;
+    dieBadge(ctx,ax+w+24*k,ay-tt.size*.3,34*k,char&&c.attrs?c.attrs[a]:'d4',false);ctx.restore();
+    ay+=50*k;
+  });
+
+  /* perícias: duas colunas, ordem alfabética, nome + dado */
+  const per=SK.map(([nm])=>nm).sort((x,y)=>x.localeCompare(y,'pt-BR'));
+  const col=[per.slice(0,10),per.slice(10,20)];
+  const cx0=[188*k,372*k],y0=258*k,dy=28.6*k;
+  ctx.save();ctx.textBaseline='middle';
+  col.forEach((arr,ci)=>arr.forEach((nm,i)=>{
+    const die=dieOf(c,nm),label=(nm=='Aptidão'?'Aptidão':nm).toUpperCase(),y=y0+i*dy;
+    ctx.font=`600 ${14.2*k}px ${FONT_RUN}`;ctx.textAlign='right';
+    ctx.fillStyle=die=='d4'?'rgba(226,232,230,.78)':'#f6f8f6';ctx.shadowColor='rgba(0,0,0,.9)';ctx.shadowBlur=6*k;
+    ctx.fillText(label,cx0[ci],y);ctx.shadowBlur=0;
+    dieBadge(ctx,cx0[ci]+17*k,y,19*k,die,false);
+  }));ctx.restore();
+
+  /* habilidades em faixas de tinta, empilhadas à direita */
+  const hl=habsCartao(c),bx=436*k,bw=322*k;let top=226*k,avail=H-top-24*k,fs=12.3*k;
+  const alt=(f)=>{ctx.font=`400 ${f}px ${FONT_TXT}`;return hl.map(h=>{const ls=quebra(ctx,h.d,bw-34*k);return{h,ls,hh:30*k*f/(12.3*k)+ls.length*f*1.25+14*k*f/(12.3*k)}})};
+  let blocos=alt(fs);
+  while(blocos.reduce((s,b)=>s+b.hh+8*k,0)>avail&&fs>8.2*k){fs-=.4*k;blocos=alt(fs)}
+  let cabem=blocos.length;
+  while(cabem>1&&blocos.slice(0,cabem).reduce((s,b)=>s+b.hh+8*k,0)>avail)cabem--;
+  const fator=fs/(12.3*k);
+  blocos.slice(0,cabem).forEach((b,i)=>{
+    const hh=30*k*fator,x=bx,y=top;
+    faixa(ctx,x,y,bw,hh,100+i*7,'#eef0ee');
+    ctx.save();ctx.fillStyle='#141818';ctx.textBaseline='middle';
+    ctx.font=`700 ${19*k*fator}px ${FONT_TIT}`;ctx.textAlign='left';ctx.fillText(b.h.n,x+12*k,y+hh*.52);
+    if(b.h.tag){ctx.font=`600 ${11.5*k*fator}px ${FONT_RUN}`;ctx.textAlign='right';ctx.fillText(tagTxt(b.h.tag).toUpperCase(),x+bw-10*k,y+hh*.5)}
+    ctx.restore();
+    const th=b.ls.length*fs*1.25+12*k*fator;
+    ctx.save();ctx.fillStyle='rgba(10,12,12,.86)';ctx.fillRect(x+4*k,y+hh-2*k,bw-10*k,th);ctx.restore();
+    ctx.save();ctx.fillStyle='#e9eeec';ctx.font=`400 ${fs}px ${FONT_TXT}`;ctx.textBaseline='top';
+    b.ls.forEach((l,j)=>ctx.fillText(l,x+14*k,y+hh+4*k+j*fs*1.25));ctx.restore();
+    top+=hh+th+8*k;
+  });
+  if(cabem<blocos.length){ctx.save();ctx.fillStyle='#cfd8d6';ctx.font=`italic 400 ${12*k}px ${FONT_TXT}`;ctx.textAlign='left';ctx.fillText(`+ ${blocos.length-cabem} habilidade(s) não couberam no cartão`,bx+4*k,H-10*k);ctx.restore()}
+
+  /* grão final leve para unificar */
+  ctx.save();ctx.globalAlpha=.05;ctx.fillStyle='#fff';const r=rng(5);for(let i=0;i<W*H/900;i++)ctx.fillRect(r()*W,r()*H,1.2*k,1.2*k);ctx.restore();
+  return cv;
+}
+
+async function exportarCartao(){
+  try{
+    let img=null;
+    if(char.foto){img=await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>res(null);i.src=char.foto})}
+    const cv=await desenharCartao(char,img);
+    const blob=await new Promise(res=>cv.toBlob(res,'image/png'));
+    const slug=(char.nome||'').toLowerCase().replace(/[^a-z0-9à-ú]+/gi,'-').replace(/^-|-$/g,'')||'ficha';
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='cartao-'+slug+'.png';
+    document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(a.href),4000);
+    $('dlg').close();say('Cartão exportado em PNG.');
+  }catch(e){console.error(e);$('ierr').textContent='Não foi possível gerar o cartão.'}
+}
+
+/* ===== Título do topo esquerdo: "A Vigília" derretendo ===== */
+async function desenharTitulo(){
+  const host=$('brand');if(!host)return;
+  await carregarFontes();
+  const dpr=Math.min(3,window.devicePixelRatio||1),alvoH=74;
+  const escuro=temaEscuro();
+  const t=textoDerretendo('A Vigília',Object.assign({size:58*dpr,seed:7,melt:.9,weight:700},escuro?{}:{color:'#14262b',tail:'rgba(24,128,143,.7)',glow:'rgba(24,128,143,.28)'}));
+  const cv=t.canvas;cv.style.height=(cv.height/dpr)+'px';cv.style.width=(cv.width/dpr)+'px';
+  cv.setAttribute('aria-hidden','true');
+  host.querySelectorAll('canvas').forEach(e=>e.remove());host.appendChild(cv);
+}
+
+function temaEscuro(){
+  const d=document.documentElement.dataset.theme;
+  if(d=='dark')return true;if(d=='light')return false;
+  return !!(window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
+}
+try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',()=>desenharTitulo())}catch(e){}
+
 try{setPavor(localStorage.getItem('op_pavor')=='1')}catch(e){}
-load().then(render);
+load().then(render).then(desenharTitulo);
 </script>
 </body>
 </html>
