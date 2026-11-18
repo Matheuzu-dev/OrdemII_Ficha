@@ -514,7 +514,7 @@ h=`<div class="box"><h2>Identificação</h2><div class="grid g2">
 <div class="pavor-wrap"><button type="button" id="pavorBtn" class="pavor" aria-pressed="${pavor}" onclick="togglePavor()">PAVOR</button></div>`}
 if(tab=='pericias'){
 h=`<div class="box"><h2>Perícias</h2><p class="mute">Todas começam em d4. Escolha o dado de cada perícia e clique em Rolar.</p>`+SK.map(([n,cat,desc])=>{const ap=n=='Aptidão',cu=ap&&c.apsub=='Outra';
-return `<div class="sk"><span><b>${n}</b> <span class="mute">${cat}</span>${ap?sel(APT,c.apsub,'class="sub" data-p="apsub" aria-label="Campo da aptidão"'):''}${cu?`<span class="apc"><input data-p="apnome" value="${esc(c.apnome)}" placeholder="Nome da sua aptidão" aria-label="Nome da aptidão própria"><input data-p="apdesc" value="${esc(c.apdesc)}" placeholder="O que ela cobre (opcional)" aria-label="Descrição da aptidão própria"></span>`:`<small>${ap?esc(APTD[c.apsub]):esc(desc)}</small>`}</span>${sel(DADOS,dieOf(c,n),`data-sk="${n}" aria-label="Dado de ${n}"`)}<button onclick="rolar('${n}')">Rolar</button></div>`}).join('')+`<div class="help"><p><b>Regra de Criação:</b> Todas começam em d4. Distribua 12 pontos (d6 = 1 pt | d8 = 2 pts | d10 = 3 pts). Mas só uma pode ter 1d10.</p></div></div>`}
+return `<div class="sk"><span><b>${n}</b> <span class="mute">${cat}</span>${ap?sel(APT,c.apsub,'class="sub" data-p="apsub" aria-label="Campo da aptidão"'):''}${cu?`<span class="apc"><input data-p="apnome" value="${esc(c.apnome)}" placeholder="Nome da sua aptidão" aria-label="Nome da aptidão própria"><input data-p="apdesc" value="${esc(c.apdesc)}" placeholder="O que ela cobre (opcional)" aria-label="Descrição da aptidão própria"></span>`:`<small>${ap?esc(APTD[c.apsub]):esc(desc)}</small>`}</span>${sel(DADOS,dieOf(c,n),`data-sk="${n}" data-d="${dieOf(c,n)}" aria-label="Dado de ${n}"`)}<button onclick="rolar('${n}')">Rolar</button></div>`}).join('')+`<div class="help"><p><b>Regra de Criação:</b> Todas começam em d4. Distribua 12 pontos (d6 = 1 pt | d8 = 2 pts | d10 = 3 pts). Mas só uma pode ter 1d10.</p></div></div>`}
 if(tab=='combate'){
 h=`<div class="box"><h2>Defesa e proteção</h2><div class="grid g2">
 <label>Defesa total<div style="font:28px 'Special Elite'" id="defTot">${DEF_BASE+c.prot}</div><span class="mute" id="defBrk">${DEF_BASE} natural + ${c.prot} de proteção</span></label>
@@ -638,7 +638,7 @@ if(t.dataset.pdattr!==undefined){c.pdAttr=t.value=='MEN'?'MEN':'EMO';applyMax(c,
 if(t.dataset.hown!==undefined){if(t.checked)c.habOwn[t.dataset.hown]=true;else delete c.habOwn[t.dataset.hown];save();t.closest('.hab').classList.toggle('own',t.checked);habCount();return}
 if(t.dataset.isel!==undefined){pickItem(+t.dataset.isel,t.value);return}
 if(t.dataset.rel!==undefined){c.rels[+t.dataset.rel].marcas[+t.dataset.j]=t.checked;save();updRel(+t.dataset.rel);return}
-if(t.dataset.sk){c.dado[t.dataset.sk]=t.value;save();return}
+if(t.dataset.sk){c.dado[t.dataset.sk]=t.value;t.dataset.d=t.value;save();return}
 if(t.tagName=='SELECT'&&(t.dataset.p||t.dataset.l)){save();render()}});
 const ELC={Sangue:'sangue',Morte:'morte',Conhecimento:'conhecimento',Energia:'energia',Medo:'medo'};
 const NSV='http://www.w3.org/2000/svg';
