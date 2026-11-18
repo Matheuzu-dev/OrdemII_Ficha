@@ -154,6 +154,15 @@ html:root[data-pavor="1"] .membrane i:nth-child(1){opacity:.7;animation-duration
 html:root[data-pavor="1"] .membrane i:nth-child(2){opacity:.55;animation-duration:14s}
 html:root[data-pavor="1"] #log::before{animation-duration:6s}
 
+/* Cores dos dados nas perícias: azul escuro (d4) → azul claro (d12) */
+.sk select[data-sk]{font-weight:600;text-align:center;border-width:2px;transition:background .25s,border-color .25s,color .25s}
+.sk select[data-sk] option{background:var(--field);color:var(--ink)}
+.sk select[data-d="d4"] {background:#14245f;border-color:#14245f;color:#e4eaff}
+.sk select[data-d="d6"] {background:#1f4aa8;border-color:#1f4aa8;color:#eef3ff}
+.sk select[data-d="d8"] {background:#2f7fd6;border-color:#2f7fd6;color:#fff}
+.sk select[data-d="d10"]{background:#63b0ee;border-color:#63b0ee;color:#0b2238}
+.sk select[data-d="d12"]{background:#a9dcf8;border-color:#a9dcf8;color:#0b2238}
+
 /* Elemento dos rituais */
 .elw{position:relative;display:block;margin-top:2px;border-radius:5px}
 .elw select{position:relative;z-index:1;font-weight:500}
@@ -164,7 +173,7 @@ html:root[data-pavor="1"] #log::before{animation-duration:6s}
 .el-sangue select{background:linear-gradient(180deg,#a8121c,#6d0710);color:#ffeaea;border-color:#c4111d}
 @keyframes auraR{from{box-shadow:0 0 5px 0 rgba(196,17,29,.35)}to{box-shadow:0 0 12px 2px rgba(196,17,29,.6)}}
 .el-sangue{overflow:hidden}
-/* gotas escorrendo como em vidro: param, escorregam e deixam rastro; tudo contido no select */
+/* gotas escorrendo escorregam e deixam rastro */
 .el-sangue .dr{top:1px;width:6px;height:9px;margin-left:-3px;z-index:3;opacity:0;border-radius:50% 50% 50% 50%/30% 30% 70% 70%;background:radial-gradient(circle at 35% 30%,#ff9a9a,#d3131f 55%,#6d0710);box-shadow:0 1px 2px rgba(0,0,0,.45);animation:glassDrop var(--t,4s) cubic-bezier(.45,0,.55,1) var(--d,0s) infinite}
 .el-sangue .dr::before{content:"";position:absolute;left:50%;bottom:7px;width:2px;height:46px;margin-left:-1px;border-radius:2px;background:linear-gradient(to top,rgba(196,17,29,.75),rgba(196,17,29,0));transform-origin:50% 100%;transform:scaleY(0);animation:glassTrail var(--t,4s) linear var(--d,0s) infinite}
 .el-sangue .dr:nth-of-type(1){left:10%;--t:4.6s;--d:0s}
