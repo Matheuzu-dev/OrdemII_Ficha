@@ -84,13 +84,7 @@ const ITENS_HER=[
   ['ESPADA FORJADA EM CASTELO','Arma corpo a corpo, dano RA+3; quando ataca com ela, você consegue um sucesso crítico com dois valores 5 ou mais',2],
   ['COTA DE MALHA','Fornece 2 pontos de armadura, mas reduz Furtividade em 1 passo',2],
 ];
-  ['TENAZ DE FERREIRO','Ferramenta semelhante a um alicate grande, com cabos longos e pontas resistentes ao calor',1],
-  ['JARRO DE ABELHAS','Consumível Pode ser arremessado em um inimigo em alcance curto. Faça um teste de Animais com DT7. Se passar, o inimigo sofre dano igual à sua rolagem alta e deve fazer; um teste de Vigos ( DT = seu teste de Animais ). Se ele falhar, perde sua próxima ação.',1],
-  ['ESPADA DA VIGÍLIA','Arma corpo a corpo, dano RA+4; Uma espada antiga mas afiada com o simbolo da vigília decorando seu cabo; Quando ataca com ela você consegue um sucesso critico com dois valores 5 ou mais',1],
-  ['LÂNÇA DA VIGÍLIA','Arma corpo a corpo, dano RA+3; Uma lança longa, afiada e balanceada. No primeiro ataque contra um inimigo que ainda não o atacou, você recebe um aumento de passo.; Também pode ser usada para se equilibrar e alcançar coisas distantes. Fornecendo +1dado de equilibrio e um aumento de passo em testes de alcançar.',2],
-  ['ESCUDO','Um escudo grande com o símbolo da Vigília. Se perder um teste oposto de ataque, mas seu teste somar pelo menos 5, reduz a sua rolagem baixa do dano recebido.',2],
-  ['ELIXIR DA VIGÍLIA','Uma mistura de ervas e frutos com propriedades cicatrizantes e energéticos; Recupera 2d6+2',1],
-const itemInfo=n=>ITENS.concat(ITENS_HER, ITENS_GER, ITENS_VIG).find(x=>x[0]==n);
+const itemInfo=n=>ITENS.concat(ITENS_HER).find(x=>x[0]==n);
 const ELEM=['Sangue','Morte','Conhecimento','Energia','Medo'];
 const TABS=[['ficha','Ficha'],['pericias','Perícias'],['combate','Combate'],['inv','Inventário'],['rituais','Rituais'],['notas','Notas']];
 
