@@ -183,7 +183,7 @@ html:root[data-pavor="1"] #log::before{animation-duration:6s}
 @keyframes glassDrop{0%{opacity:0;transform:translateY(-4px) scale(.55)}7%{opacity:1;transform:translateY(0) scale(1)}24%{transform:translateY(5px)}36%{transform:translateY(6px)}60%{transform:translateY(23px)}70%{transform:translateY(25px)}92%{opacity:1;transform:translateY(46px)}100%{opacity:0;transform:translateY(48px)}}
 @keyframes glassTrail{0%,7%{opacity:1;transform:scaleY(0)}24%{transform:scaleY(.11)}36%{transform:scaleY(.13)}60%{transform:scaleY(.5)}70%{transform:scaleY(.54)}92%{opacity:.9;transform:scaleY(1)}100%{opacity:0;transform:scaleY(1)}}
 .el-conhecimento{animation:auraG 2.8s ease-in-out infinite alternate}
-.el-conhecimento select{background:linear-gradient(180deg,#f8dd7a,#c8921a);color:#ffc400;border-color:#e8b930}
+.el-conhecimento select{background:linear-gradient(180deg,#f8dd7a,#c8921a);color:#ffde70;border-color:#e8b930}
 @keyframes auraG{from{box-shadow:0 0 6px 0 rgba(232,185,48,.4)}to{box-shadow:0 0 16px 3px rgba(255,214,90,.8)}}
 .el-conhecimento::after{background:linear-gradient(110deg,transparent 40%,rgba(255,255,255,.65) 50%,transparent 60%) 0 0/250% 100% no-repeat;animation:shine 3.2s ease-in-out infinite}
 @keyframes shine{0%{background-position:130% 0}60%,100%{background-position:-30% 0}}
